@@ -17,8 +17,6 @@ public:
     bool diskinfo(const map<string, string>& args, string& response);
     bool procinfo(const map<string, string>& args, string& response);
     bool sysinfo(const map<string, string>& args, string& response);
-private:
-    void _eraseWhiteSpace(string& input);
 
 };
 
