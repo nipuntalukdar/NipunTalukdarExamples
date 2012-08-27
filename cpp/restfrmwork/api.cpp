@@ -1,11 +1,13 @@
-#include <api.h>
+#include <boost/foreach.hpp>
+#include <api.hpp>
+#include <strutil.hpp>
 
 using namespace ourapi;
 
 struct validate_data
 {
     string api;
-    map<string, string>* params; 
+    set <string>* params; 
 };
 
 api::api()
@@ -22,9 +24,21 @@ api::api()
 
 bool api::executeAPI(const string& url, const map<string, string>& argvals, string& response)
 {
+    // Ignore all the args except the "fields" param 
     validate_data vdata ;
     vdata.api = url;
-    vdata.params =(map<string, string> *) &argvals;
+    vector<string> params;
+    set<string> uniqueparams;
+    map<string,string>::const_iterator it1 = argvals.find("fields");
+
+    if (it1 != argvals.end()) {
+        StrUtil::splitString(it1->second, ",", params);   
+    }
+    BOOST_FOREACH( string pr, params ) {
+        uniqueparams.insert(pr);
+    }
+    vdata.params = &uniqueparams;
+
     if ( !_validate(&vdata)) {
         _getInvalidResponse(response);
         return false;
@@ -56,9 +70,9 @@ bool api::_validate(const void *data)
     if ( it == _apiparams.end()){
         return false;
     }
-    map<string, string>::iterator it2 = vdata->params->begin();
+    set<string>::iterator it2 = vdata->params->begin();
     while (it2 != vdata->params->end()) {
-        if (it->second.find(it2->first) == it->second.end()) 
+        if (it->second.find(*it2) == it->second.end()) 
             return false;
         ++it2;
     }
@@ -71,16 +85,3 @@ void api::_getInvalidResponse(string& response)
     response = "Some error in your data ";
 }
 
-#if 0
-int main()
-{
-    api a;
-    map<string, string>b ;
-    b["totalparts"] = "1";
-    string url = "diskinfo";
-    string response;
-    a.executeAPI(url,b, response);
-
-}
-
-#endif 

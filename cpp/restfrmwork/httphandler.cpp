@@ -29,7 +29,7 @@
 #include <map>
 #include <string>
 
-#include <api.h>
+#include <api.hpp>
 
 using std::map;
 using std::string;

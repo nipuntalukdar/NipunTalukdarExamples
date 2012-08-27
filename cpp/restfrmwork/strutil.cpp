@@ -1,6 +1,6 @@
 #include <boost/algorithm/string.hpp>
 
-#include <strutil.h>
+#include <strutil.hpp>
 using namespace ourapi;
 
 

@@ -6,8 +6,8 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 
-#include <executor.h>
-#include <strutil.h>
+#include <executor.hpp>
+#include <strutil.hpp>
 
 using namespace ourapi;
 using std::vector;
