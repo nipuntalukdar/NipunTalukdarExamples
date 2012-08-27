@@ -2,10 +2,12 @@
 #include <iostream>
 #include <vector>
 #include <sstream>
-#include <boost/algorithm/string.hpp>
+
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
+
 #include <executor.h>
+#include <strutil.h>
 
 using namespace ourapi;
 using std::vector;
@@ -27,7 +29,7 @@ bool Executor::diskinfo(const map<string, string>& args, string& response)
     while (fgets(line, 255, fp) != 0){
         response += string(line);
     }
-    boost::split( tokens,  response, boost::is_any_of(" \t\n"), boost::token_compress_on ); 
+    StrUtil::splitString( response, " \t\n", tokens); 
     std::cout << response ;
     vector <string> :: iterator it = tokens.begin();
     while (it != tokens.end()) {
@@ -75,7 +77,7 @@ bool Executor::sysinfo(const map<string, string>& args, string& response)
         ptree::iterator pit = sysinfo.push_back(make_pair("cpus", temp));
         while (fgets(commandout, 1048, fp) != 0){
             line = commandout;
-            _eraseWhiteSpace(line);
+            StrUtil::eraseWhiteSpace(line);
             index = line.find(":");
             if (string::npos == index)
                 continue;
@@ -98,7 +100,7 @@ bool Executor::sysinfo(const map<string, string>& args, string& response)
         ptree::iterator pit = sysinfo.push_back(make_pair("memory", temp));
         while (fgets(commandout, 1048, fp) != 0){
             line = commandout;
-            _eraseWhiteSpace(line);
+            StrUtil::eraseWhiteSpace(line);
             index = line.find(":");
             if (string::npos == index)
                 continue;
@@ -134,13 +136,5 @@ bool Executor::sysinfo(const map<string, string>& args, string& response)
     std::cout << response << std::endl;
 
     return true;
-}
-
-void Executor::_eraseWhiteSpace(string& val)
-{
-    boost::erase_all(val," ");
-    boost::erase_all(val,"\n");
-    boost::erase_all(val,"\t");
-    boost::erase_all(val,"\r");
 }
 
