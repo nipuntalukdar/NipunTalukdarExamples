@@ -17,11 +17,13 @@ class api
 {
 public:
     api();
-    bool executeAPI(const string& url, const map<string, string>& argvals, string& response);
+    bool executeAPI(const string& url, const map<string, string>& argval, 
+            string& response);
 private:
     Executor _executor;
     bool _validate(const void*  data);
-    bool _executeAPI(const string& url, const map<string, string>& argvals, string& response);
+    bool _executeAPI(const string& url, const set<string>& argvals, 
+            Executor::outputType type, string& response);
     void _getInvalidResponse(string& response);
     map<string, set<string> > _apiparams;
 

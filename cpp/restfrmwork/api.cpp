@@ -1,4 +1,7 @@
+#include <string.h>
+
 #include <boost/foreach.hpp>
+
 #include <api.hpp>
 #include <strutil.hpp>
 
@@ -27,12 +30,15 @@ bool api::executeAPI(const string& url, const map<string, string>& argvals, stri
     // Ignore all the args except the "fields" param 
     validate_data vdata ;
     vdata.api = url;
+    Executor::outputType type = Executor::TYPE_JSON;
     vector<string> params;
     set<string> uniqueparams;
     map<string,string>::const_iterator it1 = argvals.find("fields");
 
     if (it1 != argvals.end()) {
-        StrUtil::splitString(it1->second, ",", params);   
+        string prms = it1->second;
+        StrUtil::eraseWhiteSpace(prms);
+        StrUtil::splitString(prms, ",", params);   
     }
     BOOST_FOREACH( string pr, params ) {
         uniqueparams.insert(pr);
@@ -44,18 +50,27 @@ bool api::executeAPI(const string& url, const map<string, string>& argvals, stri
         return false;
     }
 
-    return _executeAPI(url, argvals, response);
+    it1 = argvals.find("type");
+    if (it1 != argvals.end()){
+        const string outputtype = it1->second;
+        if (strcasecmp(outputtype.c_str(), "xml") == 0 ) {
+            type = Executor::TYPE_XML;
+        }
+    }
+
+    return _executeAPI(url, uniqueparams, type, response);
 }
 
-bool api::_executeAPI(const string& url, const map<string, string>& argvals, string& response)
+bool api::_executeAPI(const string& url, const set<string>& argvals, 
+        Executor::outputType type, string& response)
 {
     bool ret = false;
     if (url == "/sysinfo") 
-        ret = _executor.sysinfo(argvals, response);
+        ret = _executor.sysinfo(argvals, type,  response);
     if (url == "/diskinfo")
-        ret = _executor.diskinfo(argvals, response);
+        ret = _executor.diskinfo(argvals, type, response);
     if (url == "/procinfo")
-        ret = _executor.procinfo(argvals, response);
+        ret = _executor.procinfo(argvals, type, response);
 
     return ret;
 }

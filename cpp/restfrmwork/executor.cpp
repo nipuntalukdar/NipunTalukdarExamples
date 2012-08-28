@@ -5,6 +5,7 @@
 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/xml_parser.hpp>
 
 #include <executor.hpp>
 #include <strutil.hpp>
@@ -19,7 +20,8 @@ Executor::Executor()
 {
 }
 
-bool Executor::diskinfo(const map<string, string>& args, string& response)
+bool Executor::diskinfo(const set<string>& args, outputType type, 
+        string& response)
 {
     const char *command = "df | sed 's/ \\+/ /g'  | tail -n +2 ";
     char line[255];
@@ -40,7 +42,8 @@ bool Executor::diskinfo(const map<string, string>& args, string& response)
     return true;
 }
 
-bool Executor::procinfo(const map<string, string>& args, string& response)
+bool Executor::procinfo(const set<string>& args, outputType type, 
+        string& response)
 {
     const char *command = "ps -ef";
     char line[1048];
@@ -54,7 +57,8 @@ bool Executor::procinfo(const map<string, string>& args, string& response)
     return true;
 }
 
-bool Executor::sysinfo(const map<string, string>& args, string& response)
+bool Executor::sysinfo(const set<string>& args, outputType type, 
+        string& response)
 {
     const char *commandcpu = "cat /proc/cpuinfo |  sed 's/\\s\\+: /:/g'";
     const char *commandmemory = "cat /proc/meminfo |  sed 's/:\\s\\+/:/g'";
@@ -62,9 +66,9 @@ bool Executor::sysinfo(const map<string, string>& args, string& response)
     FILE *fp;
     char commandout[1048];
     string line;
-
+    ptree sysinforoot ;
     ptree sysinfo;
-
+    ptree::iterator  ptit = sysinforoot.push_back(make_pair("sysinfo", sysinfo ));
 
     while (args.find("cpus") != args.end()) {
         fp = popen(commandcpu, "r");
@@ -74,10 +78,10 @@ bool Executor::sysinfo(const map<string, string>& args, string& response)
         string field;
         string value;
         size_t index;
-        ptree::iterator pit = sysinfo.push_back(make_pair("cpus", temp));
+        ptree::iterator pit = ptit->second.push_back(make_pair("cpus", temp));
         while (fgets(commandout, 1048, fp) != 0){
             line = commandout;
-            StrUtil::eraseWhiteSpace(line);
+            StrUtil::eraseAllChars(line, ")( \r\n\t");
             index = line.find(":");
             if (string::npos == index)
                 continue;
@@ -97,10 +101,10 @@ bool Executor::sysinfo(const map<string, string>& args, string& response)
         string field;
         string value;
         size_t index;
-        ptree::iterator pit = sysinfo.push_back(make_pair("memory", temp));
+        ptree::iterator pit = ptit->second.push_back(make_pair("memory", temp));
         while (fgets(commandout, 1048, fp) != 0){
             line = commandout;
-            StrUtil::eraseWhiteSpace(line);
+            StrUtil::eraseAllChars(line, ")( \n\r\t");
             index = line.find(":");
             if (string::npos == index)
                 continue;
@@ -124,17 +128,27 @@ bool Executor::sysinfo(const map<string, string>& args, string& response)
         string field;
         string value;
         size_t index;
-        ptree::iterator pit = sysinfo.push_back(make_pair("os", temp));
+        ptree::iterator pit = ptit->second.push_back(make_pair("os", temp));
         pit->second.push_back(make_pair("osdetails", line));
         fclose(fp);
         break;
     }
 
-    std::ostringstream ostr;
-    write_json(ostr, sysinfo);
-    response = ostr.str();
+    _generateOutput(&sysinforoot, type, response);
     std::cout << response << std::endl;
 
     return true;
+}
+
+void Executor::_generateOutput(void *data, outputType type, string& output)
+{
+    std::ostringstream ostr;
+    ptree *pt = (ptree *) data;
+    if (TYPE_JSON == type)
+        write_json(ostr, *pt);
+    else if (TYPE_XML == type)
+        write_xml(ostr, *pt);
+
+    output = ostr.str();
 }
 
