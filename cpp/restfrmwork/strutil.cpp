@@ -29,6 +29,8 @@ void StrUtil::eraseAllChars(string& val, const char *chars_to_erase)
 void StrUtil::splitString(const string& input, const char* delims,
         vector <string>& tokens)
 {
-    boost::split( tokens, input, boost::is_any_of(delims), boost::token_compress_on ); 
+    string temp = input;
+    boost::trim_if(temp, boost::is_any_of(delims));
+    boost::split( tokens, temp, boost::is_any_of(delims), boost::token_compress_on ); 
 }
 

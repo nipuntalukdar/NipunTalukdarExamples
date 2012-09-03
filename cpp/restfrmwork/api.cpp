@@ -17,7 +17,7 @@ api::api()
 {
     set<string> params;
     string sysinfoparams[] = {"cpus", "memory", "os"}; 
-    string processinfoparams[] = {"numprocessess", "totalprocess", "topmemprocesss" };
+    string processinfoparams[] = {"numprc", "totalprc", "topmemprc" };
     string diskinfoparamas[] = {"totalparts", "spaceinfo" };
 
     _apiparams["/sysinfo"] =  set<string>(sysinfoparams, sysinfoparams + 3);
