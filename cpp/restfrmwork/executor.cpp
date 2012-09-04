@@ -4,6 +4,7 @@
 #include <sstream>
 
 #include <stdint.h>
+#include <boost/regex.hpp>
 #include <boost/format.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -20,6 +21,10 @@ using std::make_pair;
 using boost::lexical_cast;
 using boost::bad_lexical_cast;
 using boost::format;
+using boost::regex_search;
+using boost::match_default;
+using boost::match_results;
+using boost::regex;
 
 
 Executor::Executor()
@@ -115,18 +120,43 @@ bool Executor::diskinfo(const set<string>& args, outputType type,
 bool Executor::procinfo(const set<string>& args, outputType type, 
         string& response)
 {
-    const char *command = "ps -ef | awk ' { printf \"%s %s %s \", $1, $2, $3 ; for (i = 8; i <= NF; i++) {printf \"%s \", $i }  print \"\" }  ' ";
+    const char *command = "ps -ef | tail -n +2 |awk ' { printf \"%s %s %s \", $1, $2, $3 ; for (i = 8; i <= NF; i++) {printf \"%s \", $i }  print \"\" }  ' ";
     char line[2048];
+    FILE *fp = popen(command, "r");
 
+    if (!fp) {
+        return false;
+    }
+
+    string read_line;
     ptree prcinforoot ;
     ptree prcinfo;
+    string::const_iterator start, end;
+    match_results<string::const_iterator > what;
     ptree::iterator  ptit = prcinforoot.push_back(make_pair("prcinfo", prcinfo ));
+    ptree::iterator pit;
+    regex expression("(.*?) (.*?) (.*?) (.*)");  
+    ptree temp;
 
-    FILE *fp = popen(command, "r");
     while (fgets(line, 2048, fp) != 0){
-        response += string(line);
+        read_line = line;
+        start = read_line.begin();
+        end = read_line.end();
+        if (!regex_search(start, end, what, expression, match_default)){
+            continue;
+        }
+        if (what.size() != 5){
+            continue;
+        }   
+        pit = ptit->second.push_back(make_pair("process", temp));
+        pit->second.push_back(make_pair("owner", string(what[1].first, what[1].second)));
+        pit->second.push_back(make_pair("processid", string(what[2].first, what[2].second)));
+        pit->second.push_back(make_pair("pprocessid", string(what[3].first, what[3].second)));
+        pit->second.push_back(make_pair("processcommand", string(what[4].first, what[4].second)));
     }
     fclose(fp);    
+    _generateOutput(&prcinforoot, type, response);
+    std::cout << response << std::endl;
     return true;
 }
 
