@@ -17,11 +17,11 @@ api::api()
 {
     set<string> params;
     string sysinfoparams[] = {"cpus", "memory", "os"}; 
-    string processinfoparams[] = {"numprc", "totalprc", "topmemprc" };
+    string processinfoparams[] = {"percentmemory", "percentcpu" };
     string diskinfoparamas[] = {"totalparts", "spaceinfo" };
 
     _apiparams["/sysinfo"] =  set<string>(sysinfoparams, sysinfoparams + 3);
-    _apiparams["/procinfo"] = set<string>(processinfoparams, processinfoparams  + 3);
+    _apiparams["/procinfo"] = set<string>(processinfoparams, processinfoparams  + 2);
     _apiparams["/diskinfo"] = set<string>(diskinfoparamas, diskinfoparamas + 2);
 }
 

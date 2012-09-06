@@ -120,8 +120,8 @@ bool Executor::diskinfo(const set<string>& args, outputType type,
 bool Executor::procinfo(const set<string>& args, outputType type, 
         string& response)
 {
-    const char *command = "ps -ef | tail -n +2 |awk ' { printf \"%s %s %s \", $1, $2, $3 ; for (i = 8; i <= NF; i++) {printf \"%s \", $i }  print \"\" }  ' ";
-    char line[2048];
+    const char *command = "ps auxef | tail -n +2 |awk ' { printf \"%s %s %s %s \", $1, $2, $3, $3 ; for (i = 11; i <= NF; i++) {printf \"%s \", $i }  print \"\" }  ' ";
+    char line[8096];
     FILE *fp = popen(command, "r");
 
     if (!fp) {
@@ -135,24 +135,36 @@ bool Executor::procinfo(const set<string>& args, outputType type,
     match_results<string::const_iterator > what;
     ptree::iterator  ptit = prcinforoot.push_back(make_pair("prcinfo", prcinfo ));
     ptree::iterator pit;
-    regex expression("(.*?) (.*?) (.*?) (.*)");  
+    regex expression("(.*?) (.*?) (.*?) (.*?) (.*)");  
     ptree temp;
+    bool percentcpu = false;
+    bool percentmemory = false; 
 
-    while (fgets(line, 2048, fp) != 0){
+    if (args.find("percentcpu") != args.end()) {
+        percentcpu = true;
+    }
+    if (args.find("percentmemory") != args.end()) {
+        percentmemory = true;
+    }
+
+    while (fgets(line, 8096, fp) != 0){
         read_line = line;
         start = read_line.begin();
         end = read_line.end();
         if (!regex_search(start, end, what, expression, match_default)){
             continue;
         }
-        if (what.size() != 5){
+        if (what.size() != 6){
             continue;
         }   
         pit = ptit->second.push_back(make_pair("process", temp));
         pit->second.push_back(make_pair("owner", string(what[1].first, what[1].second)));
         pit->second.push_back(make_pair("processid", string(what[2].first, what[2].second)));
-        pit->second.push_back(make_pair("pprocessid", string(what[3].first, what[3].second)));
-        pit->second.push_back(make_pair("processcommand", string(what[4].first, what[4].second)));
+        if (percentcpu)
+            pit->second.push_back(make_pair("percentcpu", string(what[3].first, what[3].second)));
+        if (percentmemory)
+            pit->second.push_back(make_pair("percentmemory", string(what[4].first, what[4].second)));
+        pit->second.push_back(make_pair("processcommand", string(what[5].first, what[5].second)));
     }
     fclose(fp);    
     _generateOutput(&prcinforoot, type, response);
