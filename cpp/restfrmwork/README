@@ -37,9 +37,8 @@ on your Linux box. It also takes three flags "percentmemory", "percentcpu" as th
 values for parameter "fields", so that user can select a set of information.
 
 We need to compile the exmaples as shown below (assuming you built and installed
-libmicrohttpd in /usr/local):
-g** httphandler.cpp  strutil.cpp  api.cpp executor.cpp -I \
-    <Location of boost include dir> -I .  -I /usr/local -L \ 
+libmicrohttpd in /usr/local)g** httphandler.cpp  strutil.cpp  api.cpp executor.cpp -I \
+g++ httphandler.cpp  strutil.cpp  api.cpp executor.cpp -I \
      /usr/local/lib -lmicrohttpd \
      <Path to Directory containing libboost_regex.a>libboost_regex.a
 
