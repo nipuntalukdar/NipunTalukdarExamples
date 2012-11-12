@@ -46,8 +46,11 @@ int print_permutations_word(const char *prefix, const char *suffix, int suffixle
     }
 }
 
+#if 0
+//example run
 int main()
 {
     print_permutations_word("", "abcde", 5);
     return 0;
 }
+#endif
