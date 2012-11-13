@@ -16,23 +16,25 @@
 // and call the function print_permutations_word repeatedly
 //
 
+#define MAX_WORD_LEN 52
+
 #include <string.h>
 #include <stdio.h>
 
 int print_permutations_word(const char *prefix, const char *suffix, int suffixlen)
 {
-    char myprefix[26]  = "";
-    char mysuffix[26] = "";
+    char myprefix[MAX_WORD_LEN]  = "";
+    char mysuffix[MAX_WORD_LEN] = "";
     int i = 0, j = 0, k = 0;
     if (suffixlen == 0) {
         printf("word %s\n", prefix);
-        return;
+        return 0;
     }
 
     while (i < suffixlen) {
-        memset(myprefix, 0, 26);
-        memset(mysuffix, 0, 26);
-        snprintf(myprefix,26,"%s%c", prefix,suffix[i]);
+        memset(myprefix, 0, MAX_WORD_LEN);
+        memset(mysuffix, 0, MAX_WORD_LEN);
+        snprintf(myprefix,MAX_WORD_LEN,"%s%c", prefix,suffix[i]);
         j = 0;
         k = 0;
         while (j < suffixlen) {
@@ -44,6 +46,7 @@ int print_permutations_word(const char *prefix, const char *suffix, int suffixle
         i++;
         print_permutations_word(myprefix,  mysuffix, suffixlen - 1);
     }
+    return 0;
 }
 
 #if 0
