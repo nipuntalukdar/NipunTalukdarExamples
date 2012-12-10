@@ -2,7 +2,7 @@
  * In this example we demonstrate a simple way to create nodes in the zookeeper
  * server. Twenty nodes will be created with path /testpath0, /testpath1,
  * /testpath2, /testpath3, ....., /testpath19.
- * All these nodes will be initialized to the same value "myvalue".
+ * All these nodes will be initialized to the same value "myvalue1".
  * We will use zookeeper synchronus API to create the nodes. As soon as our
  * client enters connected state, we start creating the nodes.
  * 
@@ -12,16 +12,16 @@
  * contents.
  * Suppose you have downloaded and extracted zookeeper to a directory 
  * /home/yourdir/packages/zookeeper-3.3.6 . Then after you build the C libraries
- * ,they will be available at /home/nipun/packages/zookeeper-3.3.6/src/c/.libs/
+ * ,they will be available at /home/yourdir/packages/zookeeper-3.3.6/src/c/.libs/
  * and the c command line tool will available at 
- * /home/nipun/packages/zookeeper-3.3.6/src/c. The command line tools are cli_st
+ * /home/yourdir/packages/zookeeper-3.3.6/src/c. The command line tools are cli_st
  * and cli_mt and cli. They are convenient tool to examine zookeeper data.
  * 
  * Compile the below code as shown below:
  * $gcc -o testzk1 zookeeper_c_client.c -I \
- * /home/nipun/packages/zookeeper-3.3.6/src/c/include -I \ 
- * /home/nipun/packages/zookeeper-3.3.6/src/c/generated -L \
- * /home/nipun/packages/zookeeper-3.3.6/src/c/.libs/ -lzookeeper_mt
+ * /home/yourdir/packages/zookeeper-3.3.6/src/c/include -I \ 
+ * /home/yourdir/packages/zookeeper-3.3.6/src/c/generated -L \
+ * /home/yourdir/packages/zookeeper-3.3.6/src/c/.libs/ -lzookeeper_mt
  *
  * Make sure that your LD_LIBRARY_PATH includes the zookeeper C libraries to run
  * the example. Before you run the example, you have to configure and run the
@@ -137,6 +137,7 @@ int main(int argc, char *argv[])
         }
         zookeeper_process(zh, events);
         if (2 == connected ) {
+            // We created the nodes, so we will exit now
             zookeeper_close(zh);
             break;
         }   
