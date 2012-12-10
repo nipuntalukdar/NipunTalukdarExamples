@@ -1,10 +1,10 @@
 /*
- * In this example we demonstrate a simple way to create nodes in the zookeeper
- * server. Twenty nodes will be created with path /testpath0, /testpath1,
- * /testpath2, /testpath3, ....., /testpath19.
- * All these nodes will be initialized to the same value "myvalue1".
- * We will use zookeeper synchronus API to create the nodes. As soon as our
- * client enters connected state, we start creating the nodes.
+ * In this example we demonstrate a simple way to get nodes in the zookeeper
+ * server. Twenty nodes with path /testpath0, /testpath1,
+ * /testpath2, /testpath3, ....., /testpath19 will be examined and value
+ * associated with them will be printed.
+ * We will use zookeeper synchronus API to get the value of the nodes. As soon 
+ * as our client enters connected state, we start getting the node values.
  * 
  * All the examples used latest stable version of zookeeper that is version
  * 3.3.6
@@ -18,7 +18,7 @@
  * and cli_mt and cli. They are convenient tool to examine zookeeper data.
  * 
  * Compile the below code as shown below:
- * $gcc -o testzk1 zoo_create_node.c -I \
+ * $gcc -o testzk1 zoo_get_node.c -I \
  * /home/yourdir/packages/zookeeper-3.3.6/src/c/include -I \ 
  * /home/yourdir/packages/zookeeper-3.3.6/src/c/generated -L \
  * /home/yourdir/packages/zookeeper-3.3.6/src/c/.libs/ -lzookeeper_mt
@@ -29,8 +29,6 @@
  * Now you run the example as shown below:
  * ./testzk1 127.0.0.1:22181  # Assuming zookeeper server is listening on port
  * 22181 and IP 127.0.0.1 
- * Now use one of the cli tools to examine the znodes created and also their
- * values.
  *
  */
  
@@ -66,6 +64,23 @@ void watcher(zhandle_t *zzh, int type, int state, const char *path,
     }
 }
 
+void watcherforwget(zhandle_t *zzh, int type, int state, const char *path,
+             void* context)
+{
+    char *p = (char *)context;
+    if (type == ZOO_SESSION_EVENT) {
+        if (state == ZOO_CONNECTED_STATE) {
+            connected = 1;
+        } else if (state == ZOO_AUTH_FAILED_STATE) {
+            zookeeper_close(zzh);
+            exit(1);
+        } else if (state == ZOO_EXPIRED_SESSION_STATE) {
+            zookeeper_close(zzh);
+            exit(1);
+        }
+    }
+    printf("Watcher context %s\n", p);
+}
 
 int main(int argc, char *argv[])
 {
@@ -95,18 +110,27 @@ int main(int argc, char *argv[])
     }
     while (1) {
         char mypath[255];
+        char buffer[255];
+        struct Stat st;
         zookeeper_interest(zh, &fd, &interest, &tv);
         usleep(10);
         memset(mypath, 0, 255);
+        memset(buffer, 0, 255);
         if (connected) {
+            char mycontext[] = "This is context data for test";
+            int len = 254;
             while (x < 20) {
                 sprintf(mypath, "/testpath%d", x);
                 usleep(10);
-                rc = zoo_create(zh, mypath, "myvalue1", 9, &ZOO_OPEN_ACL_UNSAFE, 0, 0, 0);
-                if (rc){
+                rc = zoo_wget(zh, mypath, watcherforwget , mycontext, buffer, &len, &st);
+                if (ZOK != rc){
                     printf("Problems %s %d\n", mypath, rc);
+                } else if (len >= 0) {
+                   buffer[len] = 0;
+                   printf("Path: %s Data: %s\n", mypath, buffer);
                 }
                 x++;
+                len = 254;
             }
             connected++;
         }
