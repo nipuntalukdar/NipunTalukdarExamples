@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
         memset(mypath, 0, 255);
         if (connected) {
             while (x < 20) {
-                sprintf(mypath, "/XXtestpath%d", x);
+                sprintf(mypath, "/testpath%d", x);
                 usleep(10);
                 rc = zoo_create(zh, mypath, "myvalue1", 9, &ZOO_OPEN_ACL_UNSAFE, 0, 0, 0);
                 if (rc){
