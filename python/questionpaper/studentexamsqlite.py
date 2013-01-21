@@ -1,11 +1,12 @@
 #-------------------------------------------------------------------------------
-# Name:        studentexamsqlite
+# Name:        module2
 # Purpose:
 #
-# Author:      Nipun Talukdar
+# Author:      NTalukdar
 #
 # Created:     14-01-2013
 # Copyright:   (c) NTalukdar 2013
+# Licence:     <your licence>
 #-------------------------------------------------------------------------------
 
 import sqlite3
@@ -26,9 +27,9 @@ class MyDataBase:
 
         self.nextvalues = {}
         """ next id for various elements """
+
         self.dbcursor.execute("select name, value from nextvalue")
         allr = self.dbcursor.fetchall()
-        print(allr)
         for i in allr:
             self.nextvalues[i[0]] = i[1]
 
@@ -255,6 +256,16 @@ class MyDataBase:
             for r in allr:
                 self.caches['paperids'].append(r[0])
 
+            statement = "select * from studentschedule"
+            self.dbcursor.execute(statement)
+            allr = self.dbcursor.fetchall()
+            self.caches['studentschedules'] = {}
+            for r in allr:
+                self.caches['studentschedules'][r[0]] = {\
+                    'studentid' : r[1], 'paperid' : r[2], 'closed' : r[3], \
+                    'createdtime' : r[4], 'sheduledtime' : r[5] }
+
+
 
         except sqlite3.Error as e:
             return False
@@ -288,6 +299,119 @@ class MyDataBase:
 
         return True
 
+    def addanswers(self, paperid, studentid, scheduleid, answers, anspaperid):
+        if not self.valid('studentschedules', scheduleid):
+            return False
+        if not self.valid('studentids', studentid):
+            return False
+        if not self.valid('paperids', paperid):
+            return False
+
+        # Check if question numbers are correct
+        values = ""
+        i  = 0;
+        for r in answers:
+            if  i == 1:
+                values += " , "
+            else:
+                i = 1
+            values += str(r['questionnumber'])
+
+        if values == "":
+            return
+        statement = "select questionnumber from questionpaper where " \
+            " questionnumber not in (" + values + " )  and paperid=" + paperid
+        try:
+            self.dbcursor.execute(statement)
+            allr = self.dbcursor.fetchall()
+            if len(allr) > 0:
+                return False
+        except sqlite3.Error as e:
+            return False
+
+        # Now add the questions
+        statement = "insert into answers values "
+        addcomma = 0
+
+        for r in answers:
+            if addcomma == 1:
+                statement += ", "
+            else:
+                addcomma = 1
+            statement += "(%d, %d, %s , 0 , 0)" %(anspaperid, r['questionnumber'], \
+                            r['ans'])
+        if addcomma:
+            try:
+                self.dbcursor.execute(statement)
+                self.dbcon.commit()
+            except sqlite3.Error as e:
+                return False
+
+        return True
+
+    def addanswerpaper(self, paperid, studentid, scheduleid, answers):
+        self.addanswers(1, 1, 1, 1)
+        if not self.valid('paperids', paperid):
+            return False, -1
+        if not self.valid('studentids', studentid):
+            return False, -1
+        if not self.valid('studentschedules', scheduleid):
+            return False, -1
+
+        # check if the student already added an answerpaper for the question
+        # paper which is not evaluated. If it is there than return the old
+        # paper id
+
+        statement = "select answerpaperid, evaluated from answerpaper where " \
+            " studentid=" + str(studentid) + " and paperid=" + str(paperid)
+
+        self.dbcursor.execute(statement)
+        allr = self.dbcursor.fetchall()
+        for r in allr:
+            if r[1] == 0:
+                return False, r[0]
+
+        nextap = self.nextvalues['answerpaperid']
+        statement = "insert into answerpaper values(%d,%d,%d,%d,%d,%d,%d)" \
+         %(paperid, studentid, scheduleid,nextap,0,0, int(time.time()))
+        self.dbcursor.execute(statement)
+
+        statement = "update nextvalue set value=%d where name='answerpaperid'"\
+                %(nextap + 1)
+        self.dbcursor.execute(statement)
+
+        return True, self.nextvalues['answerpaperid']
+
+    def addanswerforpaper(self, paperid, studentid, scheduleid, answers):
+
+        status, anspaperid = self.addanswerpaper(paperid,studentid, scheduleid)
+        if not status:
+            return False
+        status = self.addanswerforpaper(paperid, studentid, scheduleid, answers\
+                    , anspaperid)
+
+        if (status):
+            try:
+
+                self.dbconn.commit()
+                self.nextvalues['answerpaperid'] += 1
+                self.autoevaluate(anspaperid)
+                return status
+            except sqlite3.Error as e:
+                print(e.args[0])
+                return False
+        return status
+
+    def autoevaluate(self, answerpaperid):
+        """
+        All the optional papers are auto evaluated as we already know the
+        correct option
+        """
+
+        pass
+
+    def evaluate(self, answerpaperid):
+        pass
 
     def __del__(self):
         self.dbcon.close()
@@ -298,6 +422,7 @@ def main():
     mydb.addstudent("rang", "xBang")
     t = int(time.time()) + 860000
     mydb.createschedule(1, 50, t)
+    mydb.addanswerpaper(50, 1, 19)
     """
     paperid = mydb.addqpaper(1, 'My Paper for physics')
     print("paperid added " + str(paperid))
