@@ -28,9 +28,6 @@ function up {
         else 
             updir=${updir}/..
         fi
-        if [ $? -ne 0 ] ; then 
-            return $?
-        fi
     done
     cd $updir
     return $?
