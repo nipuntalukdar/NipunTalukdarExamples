@@ -1,11 +1,15 @@
 #!/usr/bin/perl
 ############################################################################
-# A tool too execute command on multiple machines over SSH 
-# Will be helpful if you want the same command to be executed on many machines
-# This is free, but I will appreciate if you send a mail to me.
-# Also request you to pay $1 to anyone in need
+# A tool too execute command on multiple machines over SSH.
+# Might be helpful if you want the same command to be executed on many machines
+# 
+# The tool is free, but I will appreciate if you send a mail to me if you are
+# plannining to use it.
+# I also request you to pay $1 to anyone in need if you are really using this
+# script.
+#
 # Author: Nipun Talukdar
-# EMail: Nipun.Talukdar@gmail.com 
+# EMail:  Nipun.Talukdar@gmail.com 
 ############################################################################
 
 use threads (
