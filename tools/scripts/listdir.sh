@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# This scripts changes the permission of all the directories
-# under a certain directory to 0755
+# This scripts changes get all the directories 
+# under a certain directory 
 #
 
 if [ $# -le 0 ] ; then 
