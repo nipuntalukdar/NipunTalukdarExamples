@@ -32,12 +32,12 @@ public class StormBasic {
 			e.printStackTrace();
 		}
 
-		try {
-			while (true)
-				Thread.sleep(3000);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
+		// try {
+		// while (true)
+		// Thread.sleep(3000);
+		// } catch (InterruptedException e) {
+		// e.printStackTrace();
+		// }
 
 	}
 }
