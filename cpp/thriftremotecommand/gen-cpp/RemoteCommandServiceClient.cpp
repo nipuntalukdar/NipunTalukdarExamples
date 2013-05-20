@@ -19,6 +19,7 @@ int main(int argc, char** argv) {
 
     if (argc < 3 ) {
         cerr << "Usage " << argv[0] << " host " << " command-file " << " parameters\n";
+        exit(1);
     }
 
     boost::shared_ptr<TTransport> socket(new TSocket(argv[1], 9090));
