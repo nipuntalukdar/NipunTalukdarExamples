@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="accumulatelog/gen-java"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="/home/nipun/packages/thrift-0.8.0/lib/java/build/libthrift-0.8.0.jar"/>
+	<classpathentry kind="lib" path="/usr/local/lib/slf4j-api-1.5.8.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
