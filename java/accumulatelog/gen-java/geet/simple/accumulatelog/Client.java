@@ -31,7 +31,7 @@ public class Client {
 		cl = new AccumulateLogService.Client(protocol);
 	}
 
-	boolean addLog(String message) {
+	public boolean addLog(String message) {
 		try {
 			return 0 == cl.addLog(new LogData(Operation.ADDLOG, message));
 		} catch (Exception e) {
