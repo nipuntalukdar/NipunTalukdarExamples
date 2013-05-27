@@ -1,6 +1,15 @@
 package org.nipun.bd.storm;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+
+import org.apache.thrift.protocol.TBinaryProtocol;
+import org.apache.thrift.protocol.TProtocol;
+import org.apache.thrift.transport.TFramedTransport;
+import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
+import org.hyperic.sigar.cmd.SysInfo;
 
 import backtype.storm.task.OutputCollector;
 import backtype.storm.task.TopologyContext;
@@ -15,26 +24,49 @@ public class BasicBolt implements IRichBolt {
 	 * 
 	 */
 	private static final long serialVersionUID = 23788898L;
-	OutputCollector _collector ;
+	OutputCollector _collector;
+	TTransport tr = null;
+	TProtocol proto = null;
+	scribe.Client client = null;
+	SystemInformation syinfo = null;
 
 	@Override
-	public void prepare(@SuppressWarnings("rawtypes") Map stormConf, TopologyContext context,
-			OutputCollector collector) {
+	public void prepare(@SuppressWarnings("rawtypes") Map stormConf,
+			TopologyContext context, OutputCollector collector) {
 		_collector = collector;
 		System.out.println("Prepared");
+		tr = new TFramedTransport(new TSocket("192.168.117.215", 1463));
+		proto = new TBinaryProtocol(tr);
+		client = new scribe.Client(proto);
+		syinfo = new SystemInformation();
 	}
 
 	@Override
 	public void execute(Tuple input) {
-		String  path = (String)input.getValueByField("filepath");
-		System.out.println("Recieved " + path  + " " +  System.currentTimeMillis()/ 1000);
-		_collector.emit(new Values(path,  "CalculatedMD5"));
+		String path = (String) input.getValueByField("filepath");
+		_collector.emit(new Values(path, "CalculatedMD5"));
+		List<LogEntry> list = new ArrayList<LogEntry>();
+		LogEntry log = new LogEntry();
+		log.setCategory("Storm");
+		String message = "Bolt " + Thread.currentThread().getName() + 
+				" " + syinfo.getProcessId() + " " +syinfo.getFQDN() ;
+		log.setMessage(message);
+		list.add(log);
+		try {
+			if (!tr.isOpen())
+				tr.open();
+			client.Log(list);
+		} catch (org.apache.thrift.TException e) {
+			e.printStackTrace();
+		}
+
 	}
 
 	@Override
 	public void cleanup() {
 		System.out.println("Doing clean up");
-
+		if (tr.isOpen())
+			tr.close();
 	}
 
 	@Override

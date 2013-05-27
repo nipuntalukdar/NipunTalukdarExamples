@@ -57,6 +57,7 @@ public class AccumulatorHandler implements Iface {
 		}
 		try {
 			synchronized (bio) {
+				System.out.println("Got " + data.logData);
 				bio.write(data.logData.getBytes());
 			}
 		} catch (IOException e) {

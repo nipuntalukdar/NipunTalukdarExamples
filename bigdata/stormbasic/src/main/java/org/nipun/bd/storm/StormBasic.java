@@ -14,17 +14,25 @@ import backtype.storm.topology.TopologyBuilder;
 public class StormBasic {
 	public static void main(String[] args) {
 
+		if (args.length < 1) {
+			System.out.println("Please provide topology name");
+			System.exit(1);
+		}
 		TopologyBuilder tbuilder = new TopologyBuilder();
-		tbuilder.setSpout("spout", new BasicSpout(), 1);
-		tbuilder.setBolt("bolt1", new BasicBolt(), 1).shuffleGrouping("spout");
-		tbuilder.setBolt("bolt2", new BasicBolt(), 1).shuffleGrouping("spout");
+		tbuilder.setSpout("spout", new BasicSpout(), 4);
+		tbuilder.setBolt("bolt1", new BasicBolt(), 4).shuffleGrouping("spout");
+		tbuilder.setBolt("bolt2", new BasicBolt(), 4).shuffleGrouping("spout");
+		tbuilder.setBolt("bolt3", new BasicBolt(), 4).shuffleGrouping("spout");
 		Config conf = new Config();
 		conf.setMaxTaskParallelism(4);
-		LocalCluster lc = new LocalCluster();
-		lc.submitTopology("Topology1", conf, tbuilder.createTopology());
+		conf.setNumWorkers(4);
+
+//		LocalCluster lc = new LocalCluster();
+//		lc.submitTopology("Topology1", conf, tbuilder.createTopology());
+		
 
 		try {
-			StormSubmitter.submitTopology("Topology1", conf,
+			StormSubmitter.submitTopology(args[0], conf,
 					tbuilder.createTopology());
 		} catch (AlreadyAliveException e) {
 			e.printStackTrace();
