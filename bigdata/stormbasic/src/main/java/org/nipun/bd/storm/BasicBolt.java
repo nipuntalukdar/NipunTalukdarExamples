@@ -24,11 +24,16 @@ public class BasicBolt implements IRichBolt {
 	 * 
 	 */
 	private static final long serialVersionUID = 23788898L;
-	OutputCollector _collector;
-	TTransport tr = null;
-	TProtocol proto = null;
-	scribe.Client client = null;
-	SystemInformation syinfo = null;
+	private OutputCollector _collector;
+	private TTransport tr = null;
+	private TProtocol proto = null;
+	private scribe.Client client = null;
+	private SystemInformation syinfo = null;
+	private String name = "Bolt ";
+
+	public BasicBolt(String boltname) {
+		name += boltname;
+	}
 
 	@Override
 	public void prepare(@SuppressWarnings("rawtypes") Map stormConf,
@@ -43,23 +48,24 @@ public class BasicBolt implements IRichBolt {
 
 	@Override
 	public void execute(Tuple input) {
-		String path = (String) input.getValueByField("filepath");
-		_collector.emit(new Values(path, "CalculatedMD5"));
-		List<LogEntry> list = new ArrayList<LogEntry>();
-		LogEntry log = new LogEntry();
-		log.setCategory("Storm");
-		String message = "Bolt " + Thread.currentThread().getName() + 
-				" " + syinfo.getProcessId() + " " +syinfo.getFQDN() ;
-		log.setMessage(message);
-		list.add(log);
-		try {
-			if (!tr.isOpen())
-				tr.open();
-			client.Log(list);
-		} catch (org.apache.thrift.TException e) {
-			e.printStackTrace();
-		}
-
+//		String path = (String) input.getValueByField("filepath");
+//		// _collector.emit(new Values(path, "CalculatedMD5"));
+//		List<LogEntry> list = new ArrayList<LogEntry>();
+//		LogEntry log = new LogEntry();
+//		log.setCategory("Storm");
+//		String message = name + Thread.currentThread().getName() + " "
+//				+ syinfo.getProcessId() + " " + syinfo.getFQDN() + " "
+//				+ System.currentTimeMillis();
+//		log.setMessage(message + " " + path);
+//		list.add(log);
+//		try {
+//			if (!tr.isOpen())
+//				tr.open();
+//			client.Log(list);
+//		} catch (org.apache.thrift.TException e) {
+//			e.printStackTrace();
+//		}
+		_collector.ack(input);
 	}
 
 	@Override

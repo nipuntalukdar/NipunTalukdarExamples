@@ -19,17 +19,23 @@ public class StormBasic {
 			System.exit(1);
 		}
 		TopologyBuilder tbuilder = new TopologyBuilder();
-		tbuilder.setSpout("spout", new BasicSpout(), 4);
-		tbuilder.setBolt("bolt1", new BasicBolt(), 4).shuffleGrouping("spout");
-		tbuilder.setBolt("bolt2", new BasicBolt(), 4).shuffleGrouping("spout");
-		tbuilder.setBolt("bolt3", new BasicBolt(), 4).shuffleGrouping("spout");
+		tbuilder.setSpout("spout1", new BasicSpout("SPOUT1 "), 1);
+		tbuilder.setSpout("spout2", new BasicSpout("SPOUT2 "), 1);
+		tbuilder.setSpout("spout3", new BasicSpout("SPOUT3 "), 1);
+		tbuilder.setBolt("bolt1", new BasicBolt("BOLT1 "), 4).shuffleGrouping(
+				"spout1");
+		tbuilder.setBolt("bolt2", new BasicBolt("BOLT2 "), 4)
+				.shuffleGrouping("spout1").shuffleGrouping("spout3");
+		tbuilder.setBolt("bolt3", new BasicBolt("BOLT3 "), 4)
+				.shuffleGrouping("spout1").shuffleGrouping("spout2");
 		Config conf = new Config();
-		conf.setMaxTaskParallelism(4);
+		conf.setMaxTaskParallelism(8);
 		conf.setNumWorkers(4);
+		conf.setNumAckers(8);
+		conf.setMessageTimeoutSecs(120);
 
 //		LocalCluster lc = new LocalCluster();
 //		lc.submitTopology("Topology1", conf, tbuilder.createTopology());
-		
 
 		try {
 			StormSubmitter.submitTopology(args[0], conf,
