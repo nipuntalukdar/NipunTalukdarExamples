@@ -1,5 +1,5 @@
 /*
- * In this example we demonstrate a simple way to monitot the appearance of
+ * In this example we demonstrate a simple way to monitor the appearance of
  * children znode in a path in the server.
  * We will check znode /testpath1 for its children and will examine if any
  * children is added or deleted in this path.
@@ -163,7 +163,6 @@ int main(int argc, char *argv[])
         } else {
             fd = 0;
         }
-        FD_SET(0, &rfds);
         rc = select(fd+1, &rfds, &wfds, &efds, &tv);
         events = 0;
         if (rc > 0) {
