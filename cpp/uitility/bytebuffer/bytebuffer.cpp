@@ -65,11 +65,37 @@ void GeetPutula::ByteBuffer::rewind()
     _position = 0;
 }
 
+size_t GeetPutula::ByteBuffer::position(size_t newposition)
+{
+    size_t oldposition = _position;
+    if (newposition > _size)
+        _position = _size;
+    else
+        _position = newposition;
+    return oldposition;
+}
+
+bool GeetPutula::ByteBuffer::putBytes(void *bytes, size_t size)
+{
+    if ((_position + size ) > _size)
+        return false;
+    memcpy((char *)_data + _position, bytes, size);
+    _position += size;
+    return true;
+}
+
+void GeetPutula::ByteBuffer::readBytes(void *dest, size_t size)
+{
+    if ((_position + size ) > _size)
+        throw ByteBufferException("Not enough data to read");
+    memcpy(dest , (char *)_data + _position, size);
+    _position += size;
+}
+
 void GeetPutula::ByteBuffer::proceed(size_t steps)
 {
     if ((_position + steps) > _size )
         throw ByteBufferException("Overflow error");
     _position += steps;
 }
-
 
