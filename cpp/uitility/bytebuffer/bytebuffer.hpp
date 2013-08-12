@@ -18,6 +18,8 @@ public:
     };
 
     ByteBuffer(size_t size = 256, Endian endian = BIG  );
+    ByteBuffer(const ByteBuffer&);
+    ByteBuffer& operator=(const ByteBuffer&);
     void resize(size_t size);
 
     bool putInt32(int32_t val);
@@ -46,6 +48,8 @@ public:
     void readBytes(void *dest, size_t size);
     void proceed(size_t steps);
     void back(size_t steps);
+    size_t remaining() const;
+    size_t capacity() const;
 
     ~ByteBuffer();
 private:
@@ -61,6 +65,15 @@ private:
 inline size_t ByteBuffer::currentPosition() const
 {
     return _position;
+}
+
+inline size_t ByteBuffer::remaining() const
+{
+    return (_size - _position);
+}
+inline size_t ByteBuffer::capacity() const
+{
+    return _size;
 }
 
 } // namespace close

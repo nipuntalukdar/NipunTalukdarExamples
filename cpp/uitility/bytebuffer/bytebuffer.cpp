@@ -7,6 +7,7 @@
 #include <bytebuffer.hpp>
 
 using GeetPutula::ByteBufferException;
+
 GeetPutula::ByteBuffer::ByteBuffer(size_t size, Endian endian)
 {
     _size = size;
@@ -16,6 +17,37 @@ GeetPutula::ByteBuffer::ByteBuffer(size_t size, Endian endian)
         _data = calloc(1, size);
     else
         _data = 0;
+}
+
+GeetPutula::ByteBuffer::ByteBuffer(const ByteBuffer& buffer)
+{
+    _size = buffer._size;
+    _position = buffer._position;
+    _endian = buffer._endian;
+    if (_size > 0) {
+        _data = malloc(_size);
+        memcpy(_data, buffer._data, _size);
+    } else {
+        _data = 0;
+    }
+}
+
+GeetPutula::ByteBuffer& GeetPutula::ByteBuffer::operator=(const ByteBuffer& buffer)
+{
+    if (this != &buffer) {
+        _size = buffer._size;
+        _position = buffer._position;
+        _endian = buffer._endian;
+        if (_data)
+            free(_data);
+        if (_size > 0) {
+            _data = malloc(_size);
+            memcpy(_data, buffer._data, _size);
+        } else {
+            _data = 0;
+        }
+    }
+    return *this;
 }
 
 void GeetPutula::ByteBuffer::resize(size_t size) 
