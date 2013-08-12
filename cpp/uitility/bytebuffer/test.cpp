@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <iostream>
 #include <bytebuffer.hpp>
+#include <stdio.h>
 
 using namespace GeetPutula;
 using namespace std;
@@ -28,5 +29,29 @@ int main()
     buffer.readBytes(buf, strlen("this is my string") + 1);
     cout << (char *) buf << endl;
     free(buf);
+    position = buffer.currentPosition();
+    buffer.putInt16(45);
+    buffer.position(position);
+    cout << buffer.getInt16() << endl;
+    cout << "Current position " << buffer.currentPosition() << endl;
+    position = buffer.currentPosition();
+    buffer.putInt64(-123456789123400);
+    buffer.position(position);
+    cout << buffer.getInt64() << endl;
+    position = buffer.currentPosition() ;
+    cout << "Current position " << position << endl;
+    buffer.putFloat(-1223.3233);
+    buffer.position(position);
+    float f  = buffer.getFloat() ;
+    printf("%f floattttt\n", f);
+    
+    position = buffer.currentPosition() ;
+    cout << "Current position " << position << endl;
+    buffer.putDouble(-1223879967.3233129);
+    buffer.position(position);
+    cout << buffer.getDouble() << endl;
+    buffer.position(position);
+    double x = buffer.getDouble();
+    printf("%lf \n", x);
     return 0;
 }
