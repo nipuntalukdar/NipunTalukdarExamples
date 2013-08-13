@@ -154,9 +154,15 @@ bool GeetPutula::ByteBuffer::putDouble(double val, size_t position)
     if (((_endian == BIG) && littleEndianHost()) ||
             ((_endian == LITTLE) && !littleEndianHost())) {
         // swap needed
-        val = __bswap_64(val);
+        int i = 0, j = sizeof(double);
+        char *ptr = (char *)&val;
+        while (i < j){
+            *((char *)_data + position + i) = *(ptr + j - i -1);
+            i++;
+        }
+    } else {
+        memcpy((char *)_data + _position, (void *)&val, sizeof(double));
     }
-    memcpy((char *)_data + _position, (void *)&val, sizeof(double));
     _position = position + sizeof(double);
     return true;
 }
@@ -168,11 +174,16 @@ double GeetPutula::ByteBuffer::getDouble(size_t position)
 
     if ((position + sizeof(double)) > _size)
         throw ByteBufferException("Cannot get a double from current position");
-    memcpy((void *)&val, (char *)_data + _position, sizeof(double));
     if (((_endian == BIG) && littleEndianHost()) ||
             ((_endian == LITTLE) && !littleEndianHost())) {
-        // swap needed
-        val = __bswap_32(val);
+        int i = 0, j = sizeof(double);
+        char *ptr = (char *)&val;
+        while (i < j){
+            *(ptr + j - i -1) = *((char *)_data + position + i);
+            i++;
+        }
+    } else {
+        memcpy((void *)&val, (char *)_data + _position, sizeof(double));
     }
     _position = position + sizeof(double);
     return val;
@@ -186,9 +197,15 @@ bool GeetPutula::ByteBuffer::putFloat(float val, size_t position)
     if (((_endian == BIG) && littleEndianHost()) ||
             ((_endian == LITTLE) && !littleEndianHost())) {
         // swap needed
-        val = __bswap_32(val);
+        int i = 0, j = sizeof(float);
+        char *ptr = (char *)&val;
+        while (i < j){
+            *((char *)_data + position + i) = *(ptr + j - i -1);
+            i++;
+        }
+    } else {
+        memcpy((char *)_data + _position, (char *)&val, sizeof(float));
     }
-    memcpy((char *)_data + _position, (void *)&val, sizeof(float));
     _position = position + sizeof(float);
     return true;
 }
@@ -200,11 +217,17 @@ float GeetPutula::ByteBuffer::getFloat(size_t position)
 
     if ((position + sizeof(float)) > _size)
         throw ByteBufferException("Cannot get a float from current position");
-    memcpy((void *)&val, (char *)_data + _position, sizeof(float));
     if (((_endian == BIG) && littleEndianHost()) ||
             ((_endian == LITTLE) && !littleEndianHost())) {
         // swap needed
-        val = __bswap_32(val);
+        int i = 0, j = sizeof(float);
+        char *ptr = (char *)&val;
+        while (i < j){
+            *(ptr + j - i -1) = *((char *)_data + position + i);
+            i++;
+        }
+    } else {
+        memcpy((void *)&val, (char *)_data + _position, sizeof(float));
     }
     _position = position + sizeof(float);
     return val;
