@@ -59,99 +59,97 @@ void GeetPutula::ByteBuffer::resize(size_t size)
     _size = size;
 }
 
-bool GeetPutula::ByteBuffer::putInt32(int32_t val)
+bool GeetPutula::ByteBuffer::putInt32(int32_t val, size_t position)
 {
     int32_t converted = 0;
     if (_endian == BIG) 
         converted = htobe32(val);
     else
         converted = htole32(val);
-    putBytes((void *)&converted, 4);
-    return true;
+    return putBytes((void *)&converted, 4, position);
 }
 
-int32_t GeetPutula::ByteBuffer::getInt32()
+int32_t GeetPutula::ByteBuffer::getInt32(size_t position)
 {
     int32_t val = 0;
-    readBytes((void *)&val, 4);
+    readBytes((void *)&val, 4, position);
     if (_endian == BIG) 
         return be32toh(val);
     return le32toh(val);
 }
 
-bool GeetPutula::ByteBuffer::putInt16(int16_t val)
+bool GeetPutula::ByteBuffer::putInt16(int16_t val, size_t position)
 {
     int16_t converted = 0;
     if (_endian == BIG) 
         converted = htobe16(val);
     else
         converted = htole16(val);
-    putBytes((void *)&converted, 2);
-    return true;
+    return putBytes((void *)&converted, 2, position);
 }
 
-int16_t GeetPutula::ByteBuffer::getInt16()
+int16_t GeetPutula::ByteBuffer::getInt16(size_t position)
 {
     int16_t val = 0;
-    readBytes((void *)&val, 2);
+    readBytes((void *)&val, 2, position);
     if (_endian == BIG) 
         return be16toh(val);
     return le16toh(val);
 }
 
-bool GeetPutula::ByteBuffer::putInt64(int64_t val)
+bool GeetPutula::ByteBuffer::putInt64(int64_t val, size_t position)
 {
     int64_t converted = 0;
     if (_endian == BIG) 
         converted = htobe64(val);
     else
         converted = htole64(val);
-    putBytes((void *)&converted, 8);
-    return true;
+    return putBytes((void *)&converted, 8, position);
 }
 
-int64_t GeetPutula::ByteBuffer::getInt64()
+int64_t GeetPutula::ByteBuffer::getInt64(size_t position)
 {
     int64_t val = 0;
-    readBytes((void *)&val, 8);
+    readBytes((void *)&val, 8, position);
     if (_endian == BIG) 
         return be64toh(val);
     return le64toh(val);
 }
 
-bool GeetPutula::ByteBuffer::putUInt32(uint32_t val)
+bool GeetPutula::ByteBuffer::putUInt32(uint32_t val, size_t position)
 {
-    return putInt32((int32_t)val);
+    return putInt32((int32_t)val, position);
 }
 
-uint32_t GeetPutula::ByteBuffer::getUInt32()
+uint32_t GeetPutula::ByteBuffer::getUInt32(size_t position)
 {
-    return (uint32_t) getInt32();
+    return (uint32_t) getInt32(position);
 }
 
-bool GeetPutula::ByteBuffer::putUInt16(uint16_t val)
+bool GeetPutula::ByteBuffer::putUInt16(uint16_t val, size_t position)
 {
-    return putInt64((int16_t)val);
+    return putInt16((int16_t)val, position);
 }
 
-uint16_t GeetPutula::ByteBuffer::getUInt16()
+uint16_t GeetPutula::ByteBuffer::getUInt16(size_t position)
 {
-    return (uint16_t) getInt16();
+    return (uint16_t) getInt16(position);
 }
 
-bool GeetPutula::ByteBuffer::putUInt64(uint64_t val)
+bool GeetPutula::ByteBuffer::putUInt64(uint64_t val, size_t position)
 {
-    return putInt64((int64_t)val);
+    return putInt64((int64_t)val, position);
 }
 
-uint64_t GeetPutula::ByteBuffer::getUInt64()
+uint64_t GeetPutula::ByteBuffer::getUInt64(size_t position)
 {
-    return (uint64_t)getInt64();
+    return (uint64_t)getInt64(position);
 }
 
-bool GeetPutula::ByteBuffer::putDouble(double val)
+bool GeetPutula::ByteBuffer::putDouble(double val, size_t position)
 {
-    if ((_position + sizeof(double)) > _size)
+    position = adjustPosition(position);
+    if ((position + sizeof(double)) > _size)
         return false;
     if (((_endian == BIG) && littleEndianHost()) ||
             ((_endian == LITTLE) && !littleEndianHost())) {
@@ -159,14 +157,16 @@ bool GeetPutula::ByteBuffer::putDouble(double val)
         val = __bswap_64(val);
     }
     memcpy((char *)_data + _position, (void *)&val, sizeof(double));
-    _position += sizeof(double);
+    _position = position + sizeof(double);
+    return true;
 }
 
-double GeetPutula::ByteBuffer::getDouble()
+double GeetPutula::ByteBuffer::getDouble(size_t position)
 {
     double val = 0.0;
+    position = adjustPosition(position);
 
-    if ((_position + sizeof(double)) > _size)
+    if ((position + sizeof(double)) > _size)
         throw ByteBufferException("Cannot get a double from current position");
     memcpy((void *)&val, (char *)_data + _position, sizeof(double));
     if (((_endian == BIG) && littleEndianHost()) ||
@@ -174,13 +174,14 @@ double GeetPutula::ByteBuffer::getDouble()
         // swap needed
         val = __bswap_32(val);
     }
-    _position += sizeof(double);
+    _position = position + sizeof(double);
     return val;
 }
 
-bool GeetPutula::ByteBuffer::putFloat(float val)
+bool GeetPutula::ByteBuffer::putFloat(float val, size_t position)
 {
-    if ((_position + sizeof(float)) > _size)
+    position = adjustPosition(position);
+    if ((position + sizeof(float)) > _size)
         return false;
     if (((_endian == BIG) && littleEndianHost()) ||
             ((_endian == LITTLE) && !littleEndianHost())) {
@@ -188,14 +189,16 @@ bool GeetPutula::ByteBuffer::putFloat(float val)
         val = __bswap_32(val);
     }
     memcpy((char *)_data + _position, (void *)&val, sizeof(float));
-    _position += sizeof(float);
+    _position = position + sizeof(float);
+    return true;
 }
 
-float GeetPutula::ByteBuffer::getFloat()
+float GeetPutula::ByteBuffer::getFloat(size_t position)
 {
     float val = 0.0;
+    position = adjustPosition(position);
 
-    if ((_position + sizeof(float)) > _size)
+    if ((position + sizeof(float)) > _size)
         throw ByteBufferException("Cannot get a float from current position");
     memcpy((void *)&val, (char *)_data + _position, sizeof(float));
     if (((_endian == BIG) && littleEndianHost()) ||
@@ -203,7 +206,31 @@ float GeetPutula::ByteBuffer::getFloat()
         // swap needed
         val = __bswap_32(val);
     }
-    _position += sizeof(float);
+    _position = position + sizeof(float);
+    return val;
+}
+
+bool GeetPutula::ByteBuffer::putChar(char c, size_t position)
+{
+    return putBytes(&c, sizeof(char), position);
+}
+
+char GeetPutula::ByteBuffer::getChar(size_t position)
+{
+    char val = '0';
+    readBytes((void *)&val, sizeof(char), position);
+    return val;
+}
+
+bool GeetPutula::ByteBuffer::putWChar(wchar_t c, size_t position)
+{
+    return putBytes(&c, sizeof(wchar_t), position);
+}
+
+wchar_t GeetPutula::ByteBuffer::getWChar(size_t position)
+{
+    wchar_t val = '0';
+    readBytes((void *)&val, sizeof(wchar_t), position);
     return val;
 }
 
@@ -228,21 +255,23 @@ size_t GeetPutula::ByteBuffer::position(size_t newposition)
     return oldposition;
 }
 
-bool GeetPutula::ByteBuffer::putBytes(void *bytes, size_t size)
+bool GeetPutula::ByteBuffer::putBytes(void *bytes, size_t size, size_t position)
 {
-    if ((_position + size ) > _size)
+    position = adjustPosition(position); 
+    if ((position + size ) > _size)
         return false;
     memcpy((char *)_data + _position, bytes, size);
-    _position += size;
+    _position = position + size;
     return true;
 }
 
-void GeetPutula::ByteBuffer::readBytes(void *dest, size_t size)
+void GeetPutula::ByteBuffer::readBytes(void *dest, size_t size, size_t position)
 {
+    position = adjustPosition(position);
     if ((_position + size ) > _size)
         throw ByteBufferException("Not enough data to read");
     memcpy(dest , (char *)_data + _position, size);
-    _position += size;
+    _position = position + size;
 }
 
 void GeetPutula::ByteBuffer::proceed(size_t steps)
@@ -257,6 +286,17 @@ void GeetPutula::ByteBuffer::back(size_t steps)
     if (_position < steps)
         throw ByteBufferException("Underflow error");
     _position -= steps;
+}
+
+size_t GeetPutula::ByteBuffer::copyRaw(void *output, size_t start, size_t maxbytes) const
+{
+    if (!output || (start >= _size) || (maxbytes == 0))
+        return 0;
+    maxbytes = ((start + maxbytes) > _size) ? (_size - start + 1) :
+                        maxbytes;
+    memcpy(output, (char *)_data + start , maxbytes);
+    
+    return maxbytes;
 }
 
 bool GeetPutula::ByteBuffer::littleEndianHost()
