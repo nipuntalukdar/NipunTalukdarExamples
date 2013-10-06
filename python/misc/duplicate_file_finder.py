@@ -15,6 +15,7 @@ import os
 import sys
 import glob                                          
 import hashlib                                       
+import shutil
 
 def file_checksum(filename):
     f = open(filename, 'r')       
@@ -65,3 +66,8 @@ if len(sys.argv) > 1:
                 print fpath
             print '------\n-----'
             i = i + 1
+    i = 1
+    for checksum in checksum_list:
+        if len(checksum_list[checksum]) == 1:
+            print 'Unique file ' + str(i) + checksum_list[checksum][0] 
+    
