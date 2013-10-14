@@ -15,15 +15,9 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingDeque;
-
-import javax.sound.midi.SysexMessage;
-
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.SuffixFileFilter;
-
-import com.sun.corba.se.spi.orbutil.proxy.LinkedInvocationHandler;
-import com.sun.syndication.feed.atom.Link;
 
 /*
  *  @author Nipun Talukdar 
@@ -40,19 +34,24 @@ public class FileSystemUtils {
 	}
 
 	public static void main(String[] args) {
-		if (args.length < 1)
+		if (args.length < 2)
 			System.exit(1);
-
+		try {
+			Indexer indexer = new Indexer(new File(args[1]));
+			IndexerPool.addIndexer(indexer);
+		} catch (Exception e) {
+			e.printStackTrace();
+			System.exit(1);
+		}
 		String[] sfxes = { ".PDF", ".pdf" };
 		Collection<File> files = FileSystemUtils.getFiles(args[0], sfxes);
 		LinkedList<TextExtractorRunner> extractorRunners = new LinkedList<TextExtractorRunner>();
 		LinkedList<Thread> threads = new LinkedList<Thread>();
 		LinkedBlockingDeque<File> queue = new LinkedBlockingDeque<File>();
-		TreeMap<String, Integer> vals = new TreeMap<String, Integer>();
 		int i = 0;
 		while (i++ < 8) {
 			extractorRunners.add(new TextExtractorRunner(new TextExtractor(),
-					queue, vals));
+					queue));
 		}
 
 		Iterator<TextExtractorRunner> rit = extractorRunners.iterator();
@@ -85,10 +84,7 @@ public class FileSystemUtils {
 				e.printStackTrace();
 			}
 		}
-
-		Set<String> keys = vals.keySet();
-		for (String key : keys) {
-			System.out.println(key + "===>" + vals.get(key));
-		}
+		
+		System.out.println("Done ....................");
 	}
 }
