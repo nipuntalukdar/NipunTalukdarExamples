@@ -9,6 +9,7 @@
 package geet.examples.org;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.TreeMap;
 import java.util.Iterator;
@@ -32,10 +33,24 @@ public class FileSystemUtils {
 				DirectoryFileFilter.INSTANCE);
 		return files;
 	}
-
+	
+	public static void callMainSearch(String dir){
+		try {
+			Searcher s = new Searcher(dir);
+			s.termQuery("treeset");
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+	}
+	
 	public static void main(String[] args) {
 		if (args.length < 2)
 			System.exit(1);
+		if (args.length > 2){
+			callMainSearch(args[1]);
+			System.exit(1);
+		}
 		try {
 			Indexer indexer = new Indexer(new File(args[1]));
 			IndexerPool.addIndexer(indexer);
