@@ -36,22 +36,39 @@ def max_heapify(arr, relpos, startpos):
         arr[largest], arr[startpos] = arr[startpos], arr[largest]
         max_heapify(arr, relpos, largest)
 
-def heapsort(arr, relpos, sorted = []):
+def min_heapify(arr, relpos, startpos):
+    child = lchildi(arr, relpos, startpos)
+    if child == -1:
+        return
+    smallest = startpos
+    if arr[child] < arr[smallest]:
+        smallest = child
+    child = rchildi(arr, relpos, startpos)
+    if child != -1 and arr[child] < arr[smallest]:
+        smallest = child
+    if smallest != startpos:
+        arr[smallest], arr[startpos] = arr[startpos], arr[smallest]
+        min_heapify(arr, relpos, smallest)
+
+def heapsort(arr, relpos, maxheap=True):
     if relpos >= len(arr) - 1:
         return
     sortlen = len(arr) - relpos
     startindex = relpos + int(sortlen / 2)
     while startindex >= relpos:
-        max_heapify(arr, relpos, startindex)
+        if maxheap == True:
+            max_heapify(arr, relpos, startindex)
+        else:
+            min_heapify(arr, relpos, startindex)
         startindex = startindex -1
     relpos = relpos + 1
-    heapsort(arr, relpos, sorted)
+    heapsort(arr, relpos, maxheap)
 
 #Example run
 def main():
     array=[3,2,4,100, -1, 34,56,19,188888,55666,2782]
     sorted = []
-    heapsort(array, 0, sorted)
+    heapsort(array, 0, False)
     print(array)
 if __name__ == '__main__':
     main()
