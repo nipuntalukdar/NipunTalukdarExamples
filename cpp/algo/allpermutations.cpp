@@ -1,3 +1,4 @@
+#include <string.h>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -14,35 +15,17 @@ class AllPermutation
 public:
     AllPermutation()
     {   
-        _possibles = "";
-        _replsize = 0;
-        _current = "";
-        _last = "";
-        _exhausted = false;
+        initForBlankStr();
     }
     AllPermutation(const string& given, size_t replsize) 
     {
-        if (replsize < 0) {
-            throw "Invalid replacement size";
-        }
-        _possibles = given;
-        _replsize = replsize;
-        _current =  string(_replsize, _possibles.at(0));
-        _last =  string(_replsize, _possibles.at(_possibles.size() - 1));
-        _exhausted = false;
+        initForStr(given.c_str(), replsize);
+
     }
 
     AllPermutation(const char* given, size_t replsize) 
     {
-        if (replsize < 0) {
-            throw "Invalid replacement size";
-        }
-        _possibles = given;
-        _replsize = replsize;
-        _current =  string(_replsize, _possibles.at(0));
-        _last =  string(_replsize, _possibles.at(_possibles.size() - 1));
-        _exhausted = false;
-        buildNextCharMap();
+        initForStr(given, replsize);
     }
     bool getNext(string& next);
     void reset();
@@ -60,7 +43,31 @@ private:
     char _min;
     void mutateCurrent();
     void buildNextCharMap();
+    void initForBlankStr();
+    void initForStr(const char* str, size_t replsize);
 };
+
+void AllPermutation::initForBlankStr()
+{
+    _possibles = "";
+    _replsize = 0;
+    _current = "";
+    _last = "";
+    _exhausted = true;
+}
+
+void AllPermutation::initForStr(const char* str, size_t replsize)
+{
+    if (replsize <= 0 || str == NULL || strlen(str) == 0) {
+        throw "Invalid replacement ";
+    }
+    _possibles = str;
+    _replsize = replsize;
+    _current =  string(_replsize, _possibles.at(0));
+    _last =  string(_replsize, _possibles.at(_possibles.size() - 1));
+    _exhausted = false;
+    buildNextCharMap();
+}
 
 bool AllPermutation::getNext(string& out)
 {
@@ -69,6 +76,7 @@ bool AllPermutation::getNext(string& out)
         return false;
     }
     mutateCurrent();
+    out = _current;
     return true;
 
 }
@@ -80,13 +88,17 @@ void AllPermutation::mutateCurrent()
     while (true) {
         cur = _current.at(pos);
         if (cur == _max) {
-            _current.
-        }
-        if (pos == 0) {
-            if (cur == _max)
+            if (pos == 0) {
+                // cannot increment anymore
                 _exhausted = true;
+                break;
+            }
+            _current.replace(pos,1,1, _min);
+        } else {
+            _current.replace(pos,1,1, _nextchars[cur]);
             break;
         }
+        pos--;
     }
 }
 
@@ -98,6 +110,7 @@ void AllPermutation::buildNextCharMap()
     char cur;
     while (i < givenSize) {
         if (_nextchars.find(_possibles.at(i)) != _nextchars.end()) {
+            i++;
             continue;
         }
         _nextchars[_possibles.at(i)] = _possibles.at(i);
@@ -127,7 +140,18 @@ void AllPermutation::buildNextCharMap()
 
 int main()
 {
-    AllPermutation x("helo", 4);
+    int i = 0;
+    try {
+        AllPermutation x("ab", 2);
+        string nextcomb;
+        while (x.getNext(nextcomb)) {
+            i++;
+            cout << nextcomb << endl;
+        }
+        cout << i << " " <<  " replacements \n";
+    } catch (const char *what) {
+        cout << what << endl;
+    }
     return 0;
 }
 
