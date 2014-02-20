@@ -26,7 +26,6 @@ public class BinaryTree {
 	}
 
 	private Node root;
-
 	public BinaryTree() {
 		root = null;
 	}
@@ -141,14 +140,114 @@ public class BinaryTree {
 			cur = cur.left;
 		}
 	}
+	
+	/**
+	 *  Returns the total number of unique binary search trees with 
+	 *  n tree nodes
+	 */
+	public static int countUniqueTrees(int n){
+		if (n <= 1)
+			return 1;
+		int root = 1, left, right;
+		int sum = 0;
+		while(root <= n){
+			left = countUniqueTrees(root - 1);
+			right = countUniqueTrees(n - root);
+			sum += left * right;
+			root++;
+		}
+		return sum;
+	}
 
+	/**
+	 * 
+	 * @param tree
+	 * @return true if the tree is a proper binary tree
+	 */
+	public static boolean isBinaryTree(BinaryTree tree){
+		Node node = tree.root;
+		return isBianryTree(node);
+	}
+	
+	private static boolean isBianryTree(Node node){
+		if (node == null)
+			return true;
+		if (node.left != null && node.left.value > node.value){
+			return false;
+		}
+		if (node.right != null && node.right.value <= node.value){
+			return false;
+		}
+		
+		return (node.right == null || isBianryTree(node.right))
+				&& (node.left == null || isBianryTree(node.left));
+	}
+	
+	
+	/**
+	 * 
+	 * @param sum
+	 * @return checks if any of the path has the given sum
+	 */
+	public boolean hasPathSum(int sum){
+		return hasPathSum(sum, root);
+	}
+	
+	private boolean hasPathSum(int sum, Node node){
+		if (node == null)
+			return sum == 0;
+		if (node.left == null && node.right == null)
+			return ((sum - node.value) == 0);
+	
+		int remainsum = sum - node.value;
+		if (sum <= 0)
+			return false;
+		Node temp = node.left;
+		if (temp != null && hasPathSum(remainsum, temp))
+			return true;
+		temp = node.right;
+		if (temp != null && hasPathSum(remainsum, temp))
+			return true;
+		return false;
+			
+	}
+	
+	/**
+	 * This routines print all the paths in the tree
+	 */
+	public void printPaths(){
+		if (root == null)
+			return;
+		LinkedList<Node> nl = new LinkedList<>();
+		printPaths(root,nl);
+	}
+	
+	private void printPaths(Node node, LinkedList<Node> nl){
+		if (node.left == null && node.right == null){
+			System.out.print("Path= ");
+			for (Node n : nl){
+				System.out.print(n.value + " ");
+			}
+			System.out.println(node.value);
+			return;
+		} 
+		nl.add(node);
+		if (node.right != null){
+			printPaths(node.right, nl);
+		}
+		if (node.left != null){
+			printPaths(node.left, nl);
+		}
+		nl.removeLast();
+	}
+	
 	public static void main(String[] args) {
 		BinaryTree bn = new BinaryTree();
 		Random r = new Random();
 		Set<Integer> ints = new TreeSet<>();
 		int i = 0;
 		int j = 0;
-		while (i < 100) {
+		while (i < 5) {
 			j = r.nextInt(1000000);
 			if (ints.contains(j)) {
 				continue;
@@ -158,6 +257,7 @@ public class BinaryTree {
 			i++;
 		}
 		System.out.println(bn.size());
+		bn.printPaths();
 		try {
 			System.out.println("Min " + bn.minValue());
 			System.out.println("Max " + bn.maxValue());
@@ -170,5 +270,6 @@ public class BinaryTree {
 		bn.insert(7);
 		bn.insert(9);
 		System.err.println(bn.maxDepth());
+		System.err.println("Unique trees " + BinaryTree.countUniqueTrees(3));
 	}
 }
