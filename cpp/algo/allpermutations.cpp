@@ -63,10 +63,12 @@ void AllPermutation::initForStr(const char* str, size_t replsize)
     }
     _possibles = str;
     _replsize = replsize;
-    _current =  string(_replsize, _possibles.at(0));
-    _last =  string(_replsize, _possibles.at(_possibles.size() - 1));
-    _exhausted = false;
     buildNextCharMap();
+    _current =  string(_replsize, _uniquechars[0]);
+    _last =  string(_replsize, _uniquechars[_uniquechars.size() -1 ]);
+    _exhausted = false;
+    if (_current == _last)
+        _exhausted = false;
 }
 
 bool AllPermutation::getNext(string& out)
@@ -75,8 +77,8 @@ bool AllPermutation::getNext(string& out)
         out = _last;
         return false;
     }
-    mutateCurrent();
     out = _current;
+    mutateCurrent();
     return true;
 
 }
@@ -138,11 +140,12 @@ void AllPermutation::buildNextCharMap()
 
 }
 
+// Below is an example run
 int main()
 {
     int i = 0;
     try {
-        AllPermutation x("ab", 2);
+        AllPermutation x("abcxYABCNc", 4);
         string nextcomb;
         while (x.getNext(nextcomb)) {
             i++;
