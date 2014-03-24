@@ -241,6 +241,42 @@ public class BinaryTree {
 		nl.removeLast();
 	}
 	
+	private void mirror(Node node){
+		Node left = node.left;
+		left = node.right;
+		node.right = left;
+		if (node.right != null)
+			mirror(node.right);
+		if (node.left != null)
+			mirror(node.left);
+	}
+	
+	public void mirror(){
+		if (root == null)
+			return;
+		mirror(root);
+	}
+	
+	private void doubleTree(Node node){
+		if (node == null)
+			return;
+		if (node.left != null){
+			Node newleft = new Node(node.left.value);
+			newleft.right = null;
+			newleft.left = node.left;
+			node.left = newleft;
+			doubleTree(newleft.left);
+		}
+		doubleTree(node.right);
+			
+	}
+	
+	public void doubleTree(){
+		if (root == null)
+			return;
+		doubleTree(root);
+	}
+	
 	public static void main(String[] args) {
 		BinaryTree bn = new BinaryTree();
 		Random r = new Random();
