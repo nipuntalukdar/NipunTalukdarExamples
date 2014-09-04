@@ -17,5 +17,7 @@ int main ()
       std::cout << "Received " << (char *)reply.data() 
           << "#times " << i++  << std::endl;
   }
+  socket.close();
+  context.close();
   return 0;
 }

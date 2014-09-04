@@ -16,5 +16,7 @@ int main ()
       memcpy ((void *) reply.data (), "World", 6);
       socket.send (reply);
   }
+  socket.close();
+  context.close();
   return 0;
 }
