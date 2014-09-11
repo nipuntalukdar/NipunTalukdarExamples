@@ -19,17 +19,18 @@ int main (int argc, char *argv[])
   snprintf(transport, 255, "tcp://*:%s", argv[1]);
   socket.bind (transport);
 
-  char response[512]; 
-  memset(response, 0, 512);
-  snprintf(response, 512, "Response from server lisetning on %s", argv[1]);
+  char response[2048]; 
+  memset(response, 0, 2048);
+  snprintf(response, 2048, "Response from server lisetning on %s", argv[1]);
   int i = strlen(response);
   int times = 0;
   
   while (true){
       zmq::message_t request;
       socket.recv (&request);
-      zmq::message_t reply (512);
-      snprintf(response + i , 512, " #%d", times++);
+      zmq::message_t reply (2048);
+      snprintf(response + i , 2048, " #%d -- request data: %s", 
+              times++, (char *)request.data());
       memcpy ((void *) reply.data (), response, strlen(response));
       socket.send (reply);
   }

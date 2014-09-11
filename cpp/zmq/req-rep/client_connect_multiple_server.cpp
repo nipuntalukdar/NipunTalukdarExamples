@@ -25,9 +25,12 @@ int main (int argc, char *argv[])
     socket.connect(transport);
   }
 
+  char request_data[1024];
+  i = 0;
   while (true){
       zmq::message_t request (1024);
-      memcpy ((void *) request.data (), "Hello", 6);
+      snprintf(request_data, 1024, "Hello %08d", i++); 
+      memcpy ((void *) request.data (), request_data, strlen(request_data));
       socket.send (request);
       zmq::message_t reply;
       socket.recv (&reply);
