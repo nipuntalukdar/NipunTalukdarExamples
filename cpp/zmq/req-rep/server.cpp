@@ -1,7 +1,6 @@
 #include <zmq.hpp>
 #include <string>
 #include <iostream>
-#include <unistd.h>
 int main ()
 {
   zmq::context_t context (1);
