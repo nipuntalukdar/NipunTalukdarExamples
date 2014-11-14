@@ -1,18 +1,11 @@
-/*
- * ==================================================================================================================
- *  @author Nipun Talukdar <a href="mailto:nipun.talukdar@gmail.com">nipun.talukdar@gmail.com</a>
- *  @version $Id: TopologyStarter.java,v 1.0 Jun 12, 2014 
- *  
- * ==================================================================================================================
- */
 
 package cogeet.example.org;
-
 
 import org.slf4j.LoggerFactory;
 
 import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.joran.JoranConfigurator;
+import ch.qos.logback.core.joran.spi.JoranException;
 import backtype.storm.Config;
 import backtype.storm.LocalCluster;
 import backtype.storm.StormSubmitter;
@@ -22,55 +15,61 @@ import backtype.storm.topology.TopologyBuilder;
 import backtype.storm.tuple.Fields;
 import backtype.storm.utils.Utils;
 
-/*
- *  @author Nipun Talukdar
- *  @version $Id: TopologyStarter.java,v 1.0 Jun 12, 2014 1:56:56 AM
- */
+
 
 public class TopologyStarter {
 	public static void main(String[] args) {
-		TopologyBuilder tbuilder = new TopologyBuilder();
-		JoranConfigurator jconf = new JoranConfigurator();
-		LoggerContext lc = (LoggerContext)LoggerFactory.getILoggerFactory();
-		lc.reset();
-		jconf.setContext(lc);
-		//Define the topology
-		Fields groupingFields = new Fields(Consts.BOLTA_FIELD_1, Consts.BOLTA_FIELD_2);
-		tbuilder.setSpout("SampleSpout", new SampleSpout(), 3);
-		tbuilder.setBolt("bolta", new SampleBoltA(), 4).shuffleGrouping(
-				"SampleSpout");
-		tbuilder.setBolt("boltb", new SampleBoltB(), 6).fieldsGrouping("bolta", groupingFields);
+		System.setProperty("logfile.name", "localcluster.log");
+		String log4jConfigFile = System.getProperty("storm.home")
+				+ "/logback/cluster.xml";
+	    LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+		 JoranConfigurator  configurator = new JoranConfigurator();
+		 configurator.setContext(context);
+		 try {
+			context.reset();
+			configurator.doConfigure(log4jConfigFile);
+		} catch (JoranException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		
+		System.setProperty("java.io.tmpdir", "/tmp/stormtmp");
+		System.setProperty("storm.conf.file", "storm.yaml");
+		TopologyBuilder tbuilder = new TopologyBuilder();
+		//tbuilder.setSpout("SampleSpout", new SampleSpout(), 16);
+		tbuilder.setSpout("SampleSpoutTwo", new SampleSpoutTwo(), 16);
+		//Fields flds = new Fields(Consts.SPOUT_FIELD_1, Consts.SPOUT_FIELD_2);
+		//Fields flds2 = new Fields(Consts.BOLTA_FIELD_1, Consts.BOLTA_FIELD_2);
+		Fields flds3 = new Fields(Consts.SPOUTTWO_FIELD);
+		//tbuilder.setBolt("bolta", new SampleBoltA(), 32).localFieldsGrouping(
+		//		"SampleSpout",flds);
+		tbuilder.setBolt("boltc", new SampleBoltC(), 72).localFieldsGrouping(
+				"SampleSpoutTwo",flds3);
+		//tbuilder.setBolt("boltb",  new SampleBoltB(), 64).localFieldsGrouping("bolta", flds2); 
 		Config conf = new Config();
-		conf.setMaxTaskParallelism(24);
-		conf.setNumWorkers(2);
-		conf.setNumAckers(2);
+		conf.setMaxTaskParallelism(128);
+		conf.setNumWorkers(12);
+		conf.setNumAckers(12);
 		conf.setDebug(false);
+		conf.put(Config.STORM_LOCAL_DIR, "/tmp/stormtmp");
 		conf.put(Config.TOPOLOGY_OPTIMIZE, false);
 		conf.put(Config.TOPOLOGY_DEBUG, false);
-		conf.setMessageTimeoutSecs(10);
+		conf.registerSerialization(Sample.class, SampleSerializer.class);
+		conf.registerSerialization(Sample2.class, Sample2Serializer.class);
+		conf.registerSerialization(GroupingKey.class, GroupingKeySerializer.class);
+		conf.setMaxSpoutPending(64);
+		conf.setMessageTimeoutSecs(30);
 		Config.setMaxSpoutPending(conf, 6000);
-		if (args.length > 1 && args.equals("realcluster")) {
-			// Submit the topology to a real cluster
-			try {
-				StormSubmitter.submitTopology("SampleTopology", conf,
-						tbuilder.createTopology());
-			} catch (AlreadyAliveException e) {
-				e.printStackTrace();
-				System.exit(1);
-			} catch (InvalidTopologyException e) {
-				e.printStackTrace();
-				System.exit(1);
-			}
-
-		} else {
-			// Run the topology in local mode, very useful for debugging
-			try {
+		if (System.getenv("runlocal") != null){
 			LocalCluster cluster = new LocalCluster();
-			cluster.submitTopology("SampleTopology", conf,
-					tbuilder.createTopology());
-			} catch (Exception e){
-				e.printStackTrace();
+			cluster.submitTopology("SampleTopology", conf, tbuilder.createTopology());
+		} else {
+			try {
+				StormSubmitter.submitTopology("SampleTopology", conf, tbuilder.createTopology());
+			} catch (AlreadyAliveException e) {
+				System.out.println(e.getMessage());
+			} catch (InvalidTopologyException e) {
+				System.out.println(e.getMessage());
 			}
 		}
 	}

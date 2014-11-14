@@ -13,7 +13,7 @@ import backtype.storm.topology.base.BaseRichSpout;
 import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Values;
 
-public class SampleSpout extends BaseRichSpout {
+public class SampleSpoutTwo extends BaseRichSpout {
 
 	private SpoutOutputCollector collector = null;
 	private int unacknowlegded = 0;
@@ -22,7 +22,7 @@ public class SampleSpout extends BaseRichSpout {
 	@Override
 	public void open(Map conf, TopologyContext context,
 			SpoutOutputCollector collector) {
-		System.out.println("Spout is opened");
+		System.out.println("SpoutTwo is opened");
 		this.collector = collector;
 		x = new Random();
 	}
@@ -32,22 +32,14 @@ public class SampleSpout extends BaseRichSpout {
 		if (unacknowlegded > 20) {
 			return;
 		}
-		HashMap<String, Object> hms = new HashMap<String, Object>();
-		ArrayList<String> a = new ArrayList<String>();
-		a.add("hoi");
-		a.add("hhh");
-		Sample2 s2 = new Sample2(x.nextInt(1000000), "sample-" + x.nextInt(10000), a);
-		Sample s = new Sample(x.nextInt(999999), "sample2-" + x.nextInt(40000), a);
-		hms.put("sample2", s2);
-		hms.put("sample", s);
-		collector.emit(new Values(hms, s2), UUID.randomUUID().toString());
-		collector.emit("cstream", new Values(hms, s2), UUID.randomUUID().toString());
+		String x = UUID.randomUUID().toString();
+		collector.emit(new Values(new GroupingKey("hellloo-" + x)), x);
 		unacknowlegded++;
 	}
 
 	@Override
 	public void declareOutputFields(OutputFieldsDeclarer declarer) {
-		declarer.declare(new Fields(Consts.SPOUT_FIELD_1, Consts.SPOUT_FIELD_2));
+		declarer.declare(new Fields(Consts.SPOUTTWO_FIELD));
 		System.out.println("Out put fields declared");
 	}
 

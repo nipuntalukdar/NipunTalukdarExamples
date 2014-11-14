@@ -1,16 +1,5 @@
-/*
- * ==================================================================================================================
- *  @author Nipun Talukdar <a href="mailto:nipun.talukdar@gmail.com">nipun.talukdar@gmail.com</a>
- *  @version $Id: Consts.java,v 1.0 Jun 12, 2014 
- *  
- * ==================================================================================================================
- */
 package cogeet.example.org;
 
-/*
- *  @author Nipun Talukdar
- *  @version $Id: Consts.java,v 1.0 Jun 12, 2014 1:56:56 AM
- */
 
 
 public final class Consts {
@@ -23,6 +12,8 @@ public final class Consts {
 	
 	public final static String BOLTB_FIELD_1 = "boltbfield1";
 	public final static String BOLTB_FIELD_2 = "boltbfield2";
+	
+	public static final String SPOUTTWO_FIELD = "spoutfieldtwo";
 	
 	private Consts(){
 	}
