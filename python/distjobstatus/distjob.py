@@ -33,6 +33,12 @@ def stop_zk(zk):
     if inited:
         zk.stop()
 
+def init_redis():
+    pool = ConnectionPool(host='localhost', port=6379, db=0)
+    r = Redis(connection_pool=pool)
+    return r
+
+
 def init():
     global inited
     zk = None
@@ -112,7 +118,9 @@ class job_executor:
         self.zk.create('/executors/' + self.workerid, ephemeral=True)
 
     def __init__(self, zk):
+        zk = init()
         self.zk = zk
+        self.redis = init_redis()
         self.myid = uuid.uuid4().hex
         self.register_myself()
         self.myjobs = {}
@@ -130,8 +138,20 @@ class job_executor:
         self.execute_jobs()
 
     def execute_jobs(self):
-
-        
+        jobs = set(self.myjobs)
+        while len(jobs) > 0:
+            for i in jobs:
+                val = self.redis.lrange(i, 0, 0)
+                if val is None:
+                    jobs.remove(i)
+                    break
+                ival = int(val)
+                if isprime(ival):
+                    self.redis.hmset(completed + i, {ival: 1})
+                else:
+                    self.redis.hmset(completed + i, {ival: 0})
+                self.redis.lpop()
+            
     def __call__(self, event):
         if event.path == '/jobs':
             children = self.zk.get_children('/jobs', watch=self)
