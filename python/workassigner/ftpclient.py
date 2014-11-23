@@ -1,12 +1,9 @@
-from twisted.protocols.ftp import FTPClient, FTPFileListProtocol
+from twisted.protocols.ftp import FTPClient
 from twisted.internet.protocol import Protocol, ClientCreator
-from twisted.python import usage
 from twisted.internet import reactor
 import string
-import sys
 import signal
 from cStringIO import StringIO
-from threading import Thread
 
 
 class BufferingProtocol(Protocol):
@@ -15,6 +12,7 @@ class BufferingProtocol(Protocol):
 
     def dataReceived(self, data):
         self.buffer.write(data)
+
 
 def success(response):
     print 'Success!  Got response:'
@@ -30,16 +28,20 @@ def fail(error):
     print 'Failed.  Error was:'
     print error
 
+
 def showBuffer(result, bufferProtocol):
     print 'Got data:'
     print bufferProtocol.buffer.getvalue()
     print "*******************************"
     print "*******************************"
 
+
 def get_file(filename):
     print "Here"
     creator = ClientCreator(reactor, FTPClient, 'anonymous', 'passwd', 1)
-    creator.connectTCP('localhost', 2021).addCallback(connectionMade, filename).addErrback(connectionFailed)
+    creator.connectTCP('localhost', 2021).addCallback(connectionMade, filename)
+           .addErrback(connectionFailed)
+
 
 def connectionFailed(f):
     print "Connection Failed:", f

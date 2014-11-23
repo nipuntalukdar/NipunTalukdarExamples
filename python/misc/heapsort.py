@@ -70,5 +70,7 @@ def main():
     sorted = []
     heapsort(array, 0, False)
     print(array)
+    heapsort(array, 0)
+    print(array)
 if __name__ == '__main__':
     main()

@@ -3,15 +3,15 @@ import os
 import time
 from glob import glob
 from html import HTML
-from sets import Set
 from os import path
 import matplotlib.pyplot as plt
 
-TOPDIR='/home/geet/data/'
-INPUTDIRS='/home/geet/data/input/'
-LASTRUNTIMEFILE='/home/geet/data/time'
-STATDIR='/home/geet/stats/'
-LINESTARTS="ingesting document:"
+TOPDIR = '/home/geet/data/'
+INPUTDIRS = '/home/geet/data/input/'
+LASTRUNTIMEFILE = '/home/geet/data/time'
+STATDIR = '/home/geet/stats/'
+LINESTARTS = "ingesting document:"
+
 
 def extract_stats(fpath, outdir, legend):
     statmap = {}
@@ -19,7 +19,7 @@ def extract_stats(fpath, outdir, legend):
     threadids = []
     statdirthis = STATDIR + outdir
     fpaths = fpath.split('/')
-    cat = fpaths[len(fpaths) - 1].replace('.txt', '') 
+    cat = fpaths[len(fpaths) - 1].replace('.txt', '')
     statdirthis = STATDIR + outdir + '/' + cat
     if not path.exists(statdirthis):
         os.makedirs(statdirthis)
@@ -96,8 +96,10 @@ def extract_stats(fpath, outdir, legend):
     plt.close()
     legend[cat] = cumulative
 
+
 def draw_legend(legend, outdir):
-    plt.gca().set_color_cycle(['red', 'green', 'blue', 'yellow', 'black', 'indigo'])
+    plt.gca().set_color_cycle(['red', 'green',
+                              'blue', 'yellow', 'black', 'indigo'])
     plt.xlabel('doc/sec')
     plt.xlabel('2 min intervals')
     legends = []
@@ -113,6 +115,7 @@ def draw_legend(legend, outdir):
     plt.savefig(STATDIR + outdir + '/cumulativegraph.png')
     plt.close()
 
+
 def extract_stat_in_dir(dirpath):
     pathels = dirpath.split('/')
     legend = {}
@@ -121,6 +124,7 @@ def extract_stat_in_dir(dirpath):
         extract_stats(f, outdir, legend)
     draw_legend(legend, outdir)
     legend = None
+
 
 def main():
     lastruntime = 0

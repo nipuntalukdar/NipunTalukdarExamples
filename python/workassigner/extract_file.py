@@ -1,6 +1,7 @@
 import tarfile
 import os
 
+
 def extract_tar_archive(tarfl, outdir):
     try:
         if not os.path.exists(outdir):
