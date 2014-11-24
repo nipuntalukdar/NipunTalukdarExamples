@@ -54,7 +54,7 @@ def init():
         create_path_if_not_exists(zk, '/watchlocks')
         create_path_if_not_exists(zk, '/executors')
     except Exception as e:
-        print e
+        print 'Zk problem ', e
         if zk is not None:
             zk.stop()
         sys.exit(1)
@@ -85,7 +85,7 @@ class job_watcher:
     def unlock_my_jobs(self):
         for job, lock in self.my_jobs.items():
             lock.release()
-            print "Unlocked " + job
+            print 'Unlocked ', job
         self.my_jobs.clear()
 
     def stop_monitoring(self):
@@ -102,7 +102,7 @@ class job_watcher:
                 stat, count = vals[0].split('=')
                 jobcount[job] = int(count)
             except Exception as e:
-                print e
+                print 'Job watch error ', e
                 return
 
         while not self.stall_monitor:
@@ -112,11 +112,11 @@ class job_watcher:
                     processedcount = self.redis.hlen(job)
                     if processedcount == jobcount[job]:
                         zk.delete('/jobs/' + job)
-                        print "Job finished " + job
+                        print 'Job finished ' + job
                         self.my_jobs.remove(job)
                         break
                 except Exception as e:
-                    print e
+                    print 'Monitor error ', e
             self.lock_release()
             sleep(1)
 
@@ -140,9 +140,9 @@ class job_watcher:
                 if lock.acquire(blocking=True, timeout=1):
                     self.my_jobs[child] = lock
             except Exception as e:
-                print "Lock problem ", e
+                print 'Lock problem ', e
             else:
-                print "Locked " + child
+                print 'Locked ' + child
         self.lock.release()
         if len(self.my_jobs) > 0:
             self.start_monitoring()
@@ -150,7 +150,7 @@ class job_watcher:
     def __call__(self, event):
         if event.path == '/jobs':
             children = self.zk.get_children('/jobs', watch=self)
-            self.alljobs = set(children)
+            self.alljobs = children
         else:
             self.watchers = self.zk.get_children('/watchers', watch=self)
             self.num_watchers = len(self.watchers)
@@ -195,7 +195,6 @@ class job_executor:
     def execute_jobs(self):
         some_change = self.some_change
         def isprime(number):
-            print 'Here'
             number = abs(number)
             if number <= 1:
                 return False
@@ -226,7 +225,7 @@ class job_executor:
                 if stat == SUBMITTED:
                     jobs.add(job)
             except Exception as e:
-                print 'Problemxxxx ', e
+                print 'Problem happened ', e
         
         while len(jobs) > 0:
             for job in jobs:
@@ -245,7 +244,6 @@ class job_executor:
                     else:
                         self.redis.hmset(job + '_completed', {ival: 0})
                     self.redis.lpop(job)
-                    print 'Hi'
                 except Exception as e:
                     print 'Some problem ' , e
                     sys.exit(1)
@@ -262,7 +260,7 @@ class job_executor:
             self.run()
         if event.path == '/jobs':
             children = self.zk.get_children('/jobs', watch=self)
-            self.alljobs = set(children)
+            self.alljobs = children
         else:
             self.executors = self.zk.get_children('/executors', watch=self)
             self.num_executors = len(self.executors)
@@ -271,38 +269,36 @@ class job_executor:
         self.condition.acquire()
         self.condition.notify()
         self.condition.release()
-        print self.executors
-        print self.alljobs
-        print self.my_jobs
 
 def job_submitter_main():
     try:
         zk = init()
         cpool = ConnectionPool(host='localhost', port=6379, db=0)
         r = Redis(connection_pool=cpool)
-        i = randint(1000, 100000)
+        i = 44444
         jobname = uuid.uuid4().hex
         added_nums = set()
         added = 0
         while i > 0:
-            value = randint(5000, 1000000)
+            value = randint(5000, 90000000)
             if value not in added_nums:
                 added_nums.add(value)
-                r.lpush(jobname, randint(5000, 1000000))
+                r.lpush(jobname, value)
                 added += 1
-            i -= 1
+                i -= 1
          
         zk = KazooClient(hosts='127.0.0.1:2181')
         zk.add_listener(state_listener)
         zk.start()
         value = SUBMITTED + "=" + str(added)
+        print "Job %s task %d " % (jobname, added)
         zk.create('/jobs/' + jobname, value = value)
         zk.stop()
 
     except Exception as e:
-        print 'Big problem', e
+        print 'Big problem in submitting job ', e
         sys.exit(1)
-    print "Job submitted " + jobname
+    print 'Job submitted ' + jobname
     
 
 def watcher_main():
@@ -314,14 +310,14 @@ def job_executor_main():
  
 if __name__ == '__main__':
     if len(sys.argv)  < 2:
-        print "Usage: " + sys.argv[0] + " command"
-        print "Valid commands are : " + ', '.join(ALLOWED_COMMANDS)
+        print 'Usage: ' + sys.argv[0] + ' command'
+        print 'Valid commands are : ' + ', '.join(ALLOWED_COMMANDS)
         sys.exit(1)
     
     logging.basicConfig()
 
     if sys.argv[1] not in ALLOWED_COMMANDS:
-        print sys.argv[1] + " not a valid command"
+        print sys.argv[1] + ' not a valid command'
         sys.exit(1)
     
     if sys.argv[1] == 'watcher':
