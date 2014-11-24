@@ -7,6 +7,8 @@ import uuid
 import hashlib
 from redis import ConnectionPool, Redis
 from kazoo.client import KazooClient
+from math import sqrt
+from threading import Thread, Lock, Condition
 
 SUBMITTED = 'subm'
 PROCESSED = 'prcd'
@@ -65,7 +67,8 @@ class job_watcher:
         self.zk.create('/watchers/' + self.myid, ephemeral=True)
 
     def __init__(self, zk):
-        self.zk = zk
+        self.zk = init()
+        self.redis = init_redis()
         self.myid = uuid.uuid4().hex
         self.register_myself()
         self.myjobs = {}
@@ -83,8 +86,49 @@ class job_watcher:
             print "Unlocked " + job
         self.myjobs.clear()
 
+    def stop_monitoring(self):
+        self.stall_monitor = True
+    
+    def start_monitoring(self):
+        self.stall_monitor = False
+
+    def watch_for_completion():
+        jobcount = {}
+        for job in self.my_jobs:
+            try:
+                vals = self.zk.get('/jobs/' + job)
+                stat, count = vals[0].split('=')
+                jobcount[job] = int(count)
+            except Exception as e:
+                print e
+                return
+
+        while not self.stall_monitor:
+            self.lock.acquire()
+            for job in self.my_jobs:
+                try:
+                    processedcount = self.redis.hlen(job)
+                    if processedcount == jobcount[job]:
+                        zk.delete('/jobs/' + job)
+                        print "Job finished " + job
+                        self.my_jobs.remove(job)
+                        break
+                except Exception as e:
+                    print e
+            self.lock_release()
+            sleep(1)
+
+    def run(self):
+        while True:
+            if self.stall_monitor:
+                sleep(1)
+                continue
+            watch_for_completion() 
+
     def lock_my_job_watches(self):
+        self.stop_monitoring()
         self.unlock_my_jobs()
+        self.lock.acquire()
         for child in self.alljobs:
             slot = abs(hash(child)) % self.num_watchers
             if slot != self.myindex:
@@ -97,6 +141,9 @@ class job_watcher:
                 print "Lock problem ", e
             else:
                 print "Locked " + child
+        self.lock.release()
+        if len(self.my_jobs) > 0:
+            self.start_monitoring()
 
     def __call__(self, event):
         if event.path == '/jobs':
@@ -120,6 +167,9 @@ class job_executor:
     def __init__(self, zk):
         zk = init()
         self.zk = zk
+        self.lock = Lock()
+        self.condition = Condition(lock)
+        self.some_change = 0
         self.redis = init_redis()
         self.myid = uuid.uuid4().hex
         self.register_myself()
@@ -130,7 +180,9 @@ class job_executor:
         self.executors = children
         self.myindex = self.executors.index(self.myid)
         self.num_executors = len(self.executors)
-        self.execute()
+        self.keep_running = True
+        self.executor_thread = Thread(self)
+        self.executor_thread.start()
     
     def execute(self):
         self.myjobs.clear()
@@ -138,20 +190,68 @@ class job_executor:
         self.execute_jobs()
 
     def execute_jobs(self):
-        jobs = set(self.myjobs)
+        some_change = self.some_change
+        def isprime(number):
+            number = abs(number)
+            if number <= 1:
+                return False
+            if number <= 3:
+                return True
+            if number & 1 == 0:
+                return False
+            end = int(sqrt(number))
+            i = 3
+            while i <= end:
+                if number % i == 0:
+                    return False
+                i += 2
+            return True
+
+        if some_change != self.some_change: 
+            return
+        jobs = set()
+
+        for job in self.myjobs:
+            if some_change != self.some_change:
+                return
+            try:
+                jobval = self.zk.get('/jobs/' + i)
+                stat, counts = jobval.split('=')
+                if stat == SUBMITTED:
+                    jobs.add(job)
+            except Exception as e:
+                print 'Problem ', e
+        
         while len(jobs) > 0:
+            jobval = self.zk.get('/jobs/' + i)
+            stat, counts = jobval[0].split('=')
+
             for i in jobs:
-                val = self.redis.lrange(i, 0, 0)
-                if val is None:
-                    jobs.remove(i)
-                    break
-                ival = int(val)
-                if isprime(ival):
-                    self.redis.hmset(completed + i, {ival: 1})
-                else:
-                    self.redis.hmset(completed + i, {ival: 0})
-                self.redis.lpop()
-            
+                if some_change != self.some_change:
+                    return
+                try:
+                    val = self.redis.lrange(i, 0, 0)
+                    if val is None:
+                        stat = PROCESSED
+                        self.zk.set('/jobs/' + i, PROCESSED + '=' + counts)
+                        jobs.remove(i)
+                        break
+                    ival = int(val)
+                    if isprime(ival):
+                        self.redis.hmset(completed + i, {ival: 1})
+                    else:
+                        self.redis.hmset(completed + i, {ival: 0})
+                    self.redis.lpop()
+                except Exception as e:
+                    print 'Some problem ' + e
+
+    def run(self):
+        while self.keep_running:
+            self.execute_jobs()
+            self.condition.acquire()
+            self.condition.wait(1.0)
+            self.condition.release()
+
     def __call__(self, event):
         if event.path == '/jobs':
             children = self.zk.get_children('/jobs', watch=self)
@@ -160,11 +260,13 @@ class job_executor:
             self.executors = self.zk.get_children('/executors', watch=self)
             self.num_executors = len(self.executors)
             self.myindex = self.executors.index(self.myid)
-
+        self.some_change += 1
+        self.condition.acquire()
+        self.condition.notify()
+        self.release()
         print self.executors
         print self.alljobs
         print self.myjobs
-        self.execute()
 
 def job_submitter_main():
     try:
@@ -173,15 +275,13 @@ def job_submitter_main():
         r = Redis(connection_pool=cpool)
         i = randint(1000, 100000)
         jobname = uuid.uuid4().hex
-        queues = {0 : jobname +"_0", 1 : jobname + "_1", 2 : jobname + "_2" } 
         added_nums = set()
         added = 0
         while i > 0:
             value = randint(5000, 1000000)
             if value not in added_nums:
                 added_nums.add(value)
-                part = (value & 3) % 3
-                r.lpush(queues[part], randint(5000, 1000000))
+                r.lpush(jobname, randint(5000, 1000000))
                 added += 1
             i -= 1
          
