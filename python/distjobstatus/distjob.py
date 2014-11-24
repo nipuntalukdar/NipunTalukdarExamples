@@ -71,20 +71,22 @@ class job_watcher:
         self.redis = init_redis()
         self.myid = uuid.uuid4().hex
         self.register_myself()
-        self.myjobs = {}
+        self.my_jobs = {}
         children = zk.get_children('/jobs', watch=self)
-        self.alljobs = set(children)
+        self.alljobs = children
         children = zk.get_children('/watchers', watch=self)
         self.watchers = children
         self.myindex = self.watchers.index(self.myid)
         self.num_watchers = len(self.watchers)
         self.lock_my_job_watches()
+        self.job_watcher_thread = Thread(self)
+        self.job_watcher_thread.start()
     
     def unlock_my_jobs(self):
-        for job, lock in self.myjobs.items():
+        for job, lock in self.my_jobs.items():
             lock.release()
             print "Unlocked " + job
-        self.myjobs.clear()
+        self.my_jobs.clear()
 
     def stop_monitoring(self):
         self.stall_monitor = True
@@ -136,7 +138,7 @@ class job_watcher:
             lock = self.zk.Lock('/watchlocks/' + child)
             try:
                 if lock.acquire(blocking=True, timeout=1):
-                    self.myjobs[child] = lock
+                    self.my_jobs[child] = lock
             except Exception as e:
                 print "Lock problem ", e
             else:
@@ -156,42 +158,44 @@ class job_watcher:
 
         print self.watchers
         print self.alljobs
-        print self.myjobs
+        print self.my_jobs
         self.lock_my_job_watches()
 
 class job_executor:
 
     def register_myself(self):
-        self.zk.create('/executors/' + self.workerid, ephemeral=True)
+        self.zk.create('/executors/' + self.myid, ephemeral=True)
 
-    def __init__(self, zk):
+    def __init__(self):
         zk = init()
         self.zk = zk
         self.lock = Lock()
-        self.condition = Condition(lock)
+        self.condition = Condition(self.lock)
         self.some_change = 0
         self.redis = init_redis()
         self.myid = uuid.uuid4().hex
         self.register_myself()
-        self.myjobs = {}
+        self.my_jobs = {}
         children = zk.get_children('/jobs', watch=self)
-        self.alljobs = set(children)
+        self.alljobs = children
         children = zk.get_children('/executors', watch=self)
         self.executors = children
         self.myindex = self.executors.index(self.myid)
         self.num_executors = len(self.executors)
         self.keep_running = True
-        self.executor_thread = Thread(self)
+        self.executor_thread = Thread(target=self, args=[None])
         self.executor_thread.start()
     
     def execute(self):
-        self.myjobs.clear()
-        self.my_jobs = filter(lambda x : (x % self.num_executors) == self.myindex, self.alljobs) 
+        self.my_jobs = filter(lambda x : (self.alljobs.index(x) % self.num_executors) 
+                == self.myindex, self.alljobs) 
+        print self.my_jobs
         self.execute_jobs()
 
     def execute_jobs(self):
         some_change = self.some_change
         def isprime(number):
+            print 'Here'
             number = abs(number)
             if number <= 1:
                 return False
@@ -210,49 +214,52 @@ class job_executor:
         if some_change != self.some_change: 
             return
         jobs = set()
+        print self.my_jobs
 
-        for job in self.myjobs:
+        for job in self.my_jobs:
             if some_change != self.some_change:
                 return
             try:
-                jobval = self.zk.get('/jobs/' + i)
-                stat, counts = jobval.split('=')
+                jobval = self.zk.get('/jobs/' + job)
+                stat, counts = jobval[0].split('=')
+                print stat
                 if stat == SUBMITTED:
                     jobs.add(job)
             except Exception as e:
-                print 'Problem ', e
+                print 'Problemxxxx ', e
         
         while len(jobs) > 0:
-            jobval = self.zk.get('/jobs/' + i)
-            stat, counts = jobval[0].split('=')
-
-            for i in jobs:
+            for job in jobs:
                 if some_change != self.some_change:
                     return
                 try:
-                    val = self.redis.lrange(i, 0, 0)
-                    if val is None:
+                    val = self.redis.lrange(job, 0, 0)
+                    if val is None or len(val) == 0:
                         stat = PROCESSED
-                        self.zk.set('/jobs/' + i, PROCESSED + '=' + counts)
-                        jobs.remove(i)
+                        self.zk.set('/jobs/' + job, PROCESSED + '=' + counts)
+                        jobs.remove(job)
                         break
-                    ival = int(val)
+                    ival = int(val[0])
                     if isprime(ival):
-                        self.redis.hmset(completed + i, {ival: 1})
+                        self.redis.hmset(job + '_completed' , {ival: 1})
                     else:
-                        self.redis.hmset(completed + i, {ival: 0})
-                    self.redis.lpop()
+                        self.redis.hmset(job + '_completed', {ival: 0})
+                    self.redis.lpop(job)
+                    print 'Hi'
                 except Exception as e:
-                    print 'Some problem ' + e
+                    print 'Some problem ' , e
+                    sys.exit(1)
 
     def run(self):
         while self.keep_running:
-            self.execute_jobs()
+            self.execute()
             self.condition.acquire()
             self.condition.wait(1.0)
             self.condition.release()
 
     def __call__(self, event):
+        if event is None:
+            self.run()
         if event.path == '/jobs':
             children = self.zk.get_children('/jobs', watch=self)
             self.alljobs = set(children)
@@ -263,10 +270,10 @@ class job_executor:
         self.some_change += 1
         self.condition.acquire()
         self.condition.notify()
-        self.release()
+        self.condition.release()
         print self.executors
         print self.alljobs
-        print self.myjobs
+        print self.my_jobs
 
 def job_submitter_main():
     try:
@@ -299,9 +306,11 @@ def job_submitter_main():
     
 
 def watcher_main():
-    zk = init()
     x = job_watcher(zk)
-    sleep(10)
+
+def job_executor_main():
+    x = job_executor()
+
  
 if __name__ == '__main__':
     if len(sys.argv)  < 2:
@@ -317,6 +326,11 @@ if __name__ == '__main__':
     
     if sys.argv[1] == 'watcher':
         watcher_main()
+        sleep(86400)
     elif sys.argv[1] == 'jobsubmitter':
         job_submitter_main()
+        sleep(2)
+    elif sys.argv[1] == 'jobexecutor':
+        job_executor_main()
+        sleep(86400)
 
