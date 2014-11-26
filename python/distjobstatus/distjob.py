@@ -31,15 +31,28 @@ def create_path_if_not_exists(zk, path):
             return False
     return True
 
-def stop_zk(zk):
-    if inited:
-        zk.stop()
+
+def stop_zk(zkwrapper):
+    zkwrapper.stop()
 
 def init_redis():
     pool = ConnectionPool(host='localhost', port=6379, db=0)
     r = Redis(connection_pool=pool)
     return r
 
+
+class zk_wrapper:
+    def __init__(self, zk):
+        self.zk = zk
+        self.state = ''
+        register(stop_zk, self)
+
+    def stop(self):
+        self.zk.stop()
+        
+    def __call__(self, state):
+        self.state = state
+     
 
 def init():
     global inited
@@ -66,27 +79,32 @@ class job_watcher:
     def register_myself(self):
         self.zk.create('/watchers/' + self.myid, ephemeral=True)
 
-    def __init__(self, zk):
+    def __init__(self):
+        self.lock = Lock()
         self.zk = init()
         self.redis = init_redis()
         self.myid = uuid.uuid4().hex
         self.register_myself()
         self.my_jobs = {}
-        children = zk.get_children('/jobs', watch=self)
+        children = self.zk.get_children('/jobs', watch=self)
         self.alljobs = children
-        children = zk.get_children('/watchers', watch=self)
+        children = self.zk.get_children('/watchers', watch=self)
         self.watchers = children
         self.myindex = self.watchers.index(self.myid)
         self.num_watchers = len(self.watchers)
         self.lock_my_job_watches()
-        self.job_watcher_thread = Thread(self)
+        self.job_watcher_thread = Thread(target=self, args = [None])
         self.job_watcher_thread.start()
     
     def unlock_my_jobs(self):
+        self.lock.acquire()
         for job, lock in self.my_jobs.items():
-            lock.release()
-            print 'Unlocked ', job
+            try:
+                lock.release()
+            except Exception as e:
+                print 'Unlocking issue'
         self.my_jobs.clear()
+        self.lock.release()
 
     def stop_monitoring(self):
         self.stall_monitor = True
@@ -94,38 +112,50 @@ class job_watcher:
     def start_monitoring(self):
         self.stall_monitor = False
 
-    def watch_for_completion():
+    def watch_for_completion(self):
         jobcount = {}
+        self.lock.acquire()
         for job in self.my_jobs:
             try:
                 vals = self.zk.get('/jobs/' + job)
                 stat, count = vals[0].split('=')
-                jobcount[job] = int(count)
+                jobcount[job] = {'count': int(count), 'stat': stat}
             except Exception as e:
                 print 'Job watch error ', e
+                self.lock.release()
                 return
-
-        while not self.stall_monitor:
+        self.lock.release()
+        times = 0 
+        while (not self.stall_monitor) and (times < 4):
+            times += 1
+            temp = ''
             self.lock.acquire()
             for job in self.my_jobs:
                 try:
-                    processedcount = self.redis.hlen(job)
-                    if processedcount == jobcount[job]:
-                        zk.delete('/jobs/' + job)
+                    if (job not in jobcount) or jobcount[job]['stat'] != PROCESSED:
+                        continue
+                    processedcount = self.redis.hlen(job + '_completed')
+                    if processedcount == jobcount[job]['count'] or processedcount == 0:
+                        self.my_jobs[job].release()
+                        self.zk.delete('/watchlocks/' + job)
+                        self.redis.delete(job + '_completed')
+                        self.zk.delete('/jobs/' + job)
                         print 'Job finished ' + job
-                        self.my_jobs.remove(job)
+                        temp = job
                         break
                 except Exception as e:
                     print 'Monitor error ', e
-            self.lock_release()
-            sleep(1)
+            if temp != '':
+                del self.my_jobs[temp]
+                sleep(0.4)
+            self.lock.release()
 
     def run(self):
         while True:
             if self.stall_monitor:
                 sleep(1)
                 continue
-            watch_for_completion() 
+            self.watch_for_completion() 
 
     def lock_my_job_watches(self):
         self.stop_monitoring()
@@ -137,17 +167,20 @@ class job_watcher:
                 continue
             lock = self.zk.Lock('/watchlocks/' + child)
             try:
-                if lock.acquire(blocking=True, timeout=1):
+                if lock.acquire(blocking=True, timeout = 1):
                     self.my_jobs[child] = lock
             except Exception as e:
                 print 'Lock problem ', e
-            else:
-                print 'Locked ' + child
         self.lock.release()
         if len(self.my_jobs) > 0:
             self.start_monitoring()
 
     def __call__(self, event):
+        if event is None:
+            '''
+            I am not the zookeeper event callback
+            '''
+            self.run()
         if event.path == '/jobs':
             children = self.zk.get_children('/jobs', watch=self)
             self.alljobs = children
@@ -155,10 +188,6 @@ class job_watcher:
             self.watchers = self.zk.get_children('/watchers', watch=self)
             self.num_watchers = len(self.watchers)
             self.myindex = self.watchers.index(self.myid)
-
-        print self.watchers
-        print self.alljobs
-        print self.my_jobs
         self.lock_my_job_watches()
 
 class job_executor:
@@ -189,7 +218,6 @@ class job_executor:
     def execute(self):
         self.my_jobs = filter(lambda x : (self.alljobs.index(x) % self.num_executors) 
                 == self.myindex, self.alljobs) 
-        print self.my_jobs
         self.execute_jobs()
 
     def execute_jobs(self):
@@ -213,7 +241,6 @@ class job_executor:
         if some_change != self.some_change: 
             return
         jobs = set()
-        print self.my_jobs
 
         for job in self.my_jobs:
             if some_change != self.some_change:
@@ -221,7 +248,6 @@ class job_executor:
             try:
                 jobval = self.zk.get('/jobs/' + job)
                 stat, counts = jobval[0].split('=')
-                print stat
                 if stat == SUBMITTED:
                     jobs.add(job)
             except Exception as e:
@@ -239,11 +265,8 @@ class job_executor:
                         jobs.remove(job)
                         break
                     ival = int(val[0])
-                    if isprime(ival):
-                        self.redis.hmset(job + '_completed' , {ival: 1})
-                    else:
-                        self.redis.hmset(job + '_completed', {ival: 0})
-                    self.redis.lpop(job)
+                    if self.redis.hmset(job + '_completed' , {ival: isprime(ival)}):
+                        self.redis.lpop(job)
                 except Exception as e:
                     print 'Some problem ' , e
                     sys.exit(1)
@@ -275,23 +298,33 @@ def job_submitter_main():
         zk = init()
         cpool = ConnectionPool(host='localhost', port=6379, db=0)
         r = Redis(connection_pool=cpool)
-        i = 44444
+        added = 0
+        tried = 0
+        max_add_try = 5000
         jobname = uuid.uuid4().hex
         added_nums = set()
-        added = 0
-        while i > 0:
+
+        while tried < max_add_try:
             value = randint(5000, 90000000)
+            tried += 1
             if value not in added_nums:
                 added_nums.add(value)
-                r.lpush(jobname, value)
-                added += 1
-                i -= 1
+            else:
+                continue
+
+            while True:
+                try:
+                    r.lpush(jobname, value)
+                    added += 1
+                    break
+                except Exception as e:
+                    sleep(1)
+                    print "Lpush ", jobname, e
          
         zk = KazooClient(hosts='127.0.0.1:2181')
         zk.add_listener(state_listener)
         zk.start()
         value = SUBMITTED + "=" + str(added)
-        print "Job %s task %d " % (jobname, added)
         zk.create('/jobs/' + jobname, value = value)
         zk.stop()
 
@@ -302,7 +335,7 @@ def job_submitter_main():
     
 
 def watcher_main():
-    x = job_watcher(zk)
+    x = job_watcher()
 
 def job_executor_main():
     x = job_executor()
