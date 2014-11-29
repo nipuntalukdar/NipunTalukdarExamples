@@ -4,7 +4,6 @@ from time import sleep
 from random import randint
 import logging
 import uuid
-import hashlib
 from redis import ConnectionPool, Redis
 from kazoo.client import KazooClient
 from math import sqrt
@@ -19,14 +18,19 @@ inited = False
 
 ALLOWED_COMMANDS = ['watcher', 'jobsubmitter', 'jobexecutor']
 
+
 def state_listener(state):
     print state
 
+
 def create_path_if_not_exists(zk, path):
+    '''
+    Create the znode path if it is not existing already
+    '''
     if not zk.exists(path):
         try:
             zk.ensure_path(path)
-        except Exeception as e:
+        except Exception as e:
             print e
             return False
     return True
@@ -35,13 +39,21 @@ def create_path_if_not_exists(zk, path):
 def stop_zk(zkwrapper):
     zkwrapper.stop()
 
+
 def init_redis():
+    '''
+    Connect to redis server. For this example, we are running
+    Redis on the same machine
+    '''
     pool = ConnectionPool(host='localhost', port=6379, db=0)
     r = Redis(connection_pool=pool)
     return r
 
 
 class zk_wrapper:
+    '''
+    Callable class wrapping a zookeeper kazooclient object
+    '''
     def __init__(self, zk):
         self.zk = zk
         self.state = ''
@@ -49,12 +61,13 @@ class zk_wrapper:
 
     def stop(self):
         self.zk.stop()
-        
+
     def __call__(self, state):
         self.state = state
-     
+
 
 def init():
+
     global inited
     zk = None
     try:
@@ -75,6 +88,7 @@ def init():
     inited = True
     return zk
 
+
 class job_watcher:
     def register_myself(self):
         self.zk.create('/watchers/' + self.myid, ephemeral=True)
@@ -93,22 +107,22 @@ class job_watcher:
         self.myindex = self.watchers.index(self.myid)
         self.num_watchers = len(self.watchers)
         self.lock_my_job_watches()
-        self.job_watcher_thread = Thread(target=self, args = [None])
+        self.job_watcher_thread = Thread(target=self, args=[None])
         self.job_watcher_thread.start()
-    
+
     def unlock_my_jobs(self):
         self.lock.acquire()
         for job, lock in self.my_jobs.items():
             try:
                 lock.release()
             except Exception as e:
-                print 'Unlocking issue'
+                print 'Unlocking issue', e
         self.my_jobs.clear()
         self.lock.release()
 
     def stop_monitoring(self):
         self.stall_monitor = True
-    
+
     def start_monitoring(self):
         self.stall_monitor = False
 
@@ -125,7 +139,7 @@ class job_watcher:
                 self.lock.release()
                 return
         self.lock.release()
-        times = 0 
+        times = 0
         while (not self.stall_monitor) and (times < 4):
             times += 1
             temp = ''
@@ -155,7 +169,7 @@ class job_watcher:
             if self.stall_monitor:
                 sleep(1)
                 continue
-            self.watch_for_completion() 
+            self.watch_for_completion()
 
     def lock_my_job_watches(self):
         self.stop_monitoring()
@@ -167,7 +181,7 @@ class job_watcher:
                 continue
             lock = self.zk.Lock('/watchlocks/' + child)
             try:
-                if lock.acquire(blocking=True, timeout = 1):
+                if lock.acquire(blocking=True, timeout=1):
                     self.my_jobs[child] = lock
             except Exception as e:
                 print 'Lock problem ', e
@@ -189,6 +203,7 @@ class job_watcher:
             self.num_watchers = len(self.watchers)
             self.myindex = self.watchers.index(self.myid)
         self.lock_my_job_watches()
+
 
 class job_executor:
 
@@ -214,14 +229,15 @@ class job_executor:
         self.keep_running = True
         self.executor_thread = Thread(target=self, args=[None])
         self.executor_thread.start()
-    
+
     def execute(self):
-        self.my_jobs = filter(lambda x : (self.alljobs.index(x) % self.num_executors) 
-                == self.myindex, self.alljobs) 
+        self.my_jobs = filter(lambda x: (self.alljobs.index(x) % self.num_executors)
+                              == self.myindex, self.alljobs)
         self.execute_jobs()
 
     def execute_jobs(self):
         some_change = self.some_change
+
         def isprime(number):
             number = abs(number)
             if number <= 1:
@@ -238,7 +254,7 @@ class job_executor:
                 i += 2
             return True
 
-        if some_change != self.some_change: 
+        if some_change != self.some_change:
             return
         jobs = set()
 
@@ -252,7 +268,7 @@ class job_executor:
                     jobs.add(job)
             except Exception as e:
                 print 'Problem happened ', e
-        
+
         while len(jobs) > 0:
             for job in jobs:
                 if some_change != self.some_change:
@@ -265,10 +281,10 @@ class job_executor:
                         jobs.remove(job)
                         break
                     ival = int(val[0])
-                    if self.redis.hmset(job + '_completed' , {ival: isprime(ival)}):
+                    if self.redis.hmset(job + '_completed', {ival: isprime(ival)}):
                         self.redis.lpop(job)
                 except Exception as e:
-                    print 'Some problem ' , e
+                    print 'Some problem ', e
                     sys.exit(1)
 
     def run(self):
@@ -292,6 +308,7 @@ class job_executor:
         self.condition.acquire()
         self.condition.notify()
         self.condition.release()
+
 
 def job_submitter_main():
     try:
@@ -320,39 +337,37 @@ def job_submitter_main():
                 except Exception as e:
                     sleep(1)
                     print "Lpush ", jobname, e
-         
+
         zk = KazooClient(hosts='127.0.0.1:2181')
         zk.add_listener(state_listener)
         zk.start()
         value = SUBMITTED + "=" + str(added)
-        zk.create('/jobs/' + jobname, value = value)
+        zk.create('/jobs/' + jobname, value=value)
         zk.stop()
 
     except Exception as e:
         print 'Big problem in submitting job ', e
         sys.exit(1)
     print 'Job submitted ' + jobname
-    
+
 
 def watcher_main():
-    x = job_watcher()
+    job_watcher()
+
 
 def job_executor_main():
-    x = job_executor()
+    job_executor()
 
- 
+
 if __name__ == '__main__':
-    if len(sys.argv)  < 2:
+    if len(sys.argv) < 2:
         print 'Usage: ' + sys.argv[0] + ' command'
         print 'Valid commands are : ' + ', '.join(ALLOWED_COMMANDS)
         sys.exit(1)
-    
     logging.basicConfig()
-
     if sys.argv[1] not in ALLOWED_COMMANDS:
         print sys.argv[1] + ' not a valid command'
         sys.exit(1)
-    
     if sys.argv[1] == 'watcher':
         watcher_main()
         sleep(86400)
@@ -362,4 +377,3 @@ if __name__ == '__main__':
     elif sys.argv[1] == 'jobexecutor':
         job_executor_main()
         sleep(86400)
-
