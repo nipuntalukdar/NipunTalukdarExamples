@@ -5,13 +5,15 @@ import sys
 from optparse import OptionParser
 
 cstyle_comments = {'whole_line': ['//'], 'start': '/*', 'end': '*/'}
-python_comments = {'whole_line': '#', 'start': "'''", 'end': "'''"}
-perl_comments = {'whole_line': '#'}
-comment_syntax = {'c': cstyle_comments, 'java': cstyle_comments, 'cpp': cstyle_comments, 'scala': cstyle_comments,
-                  'go': cstyle_comments, 'pl': perl_comments, 'py': python_comments}
+python_comments = {'whole_line': ['#'], 'start': "'''", 'end': "'''"}
+perl_comments = {'whole_line': ['#']}
+php_comments = {'whole_line': ['//', '#'], 'start': '/*', 'end': '*/'}
+comment_syntax = {'C': cstyle_comments, 'Java': cstyle_comments, 'C++': cstyle_comments, 'Scala': cstyle_comments,
+                  'Go': cstyle_comments, 'Perl': perl_comments, 'Python': python_comments, 'PHP' : php_comments}
 
-extns_norm_map = {'c': 'c', 'c++': 'cpp', 'cxx': 'cpp', 'hpp': 'cpp', 'hxx': 'cpp', 'g++': 'cpp', 'cc': 'cpp',
-                  'pl': 'pl', 'pm': 'pl'}
+extns_norm_map = {'c': 'C', 'h': 'C', 'c++': 'C++', 'cxx': 'C++', 'hpp': 'C++', 'hxx': 'C++', 'g++': 'C++', 'cc': 'C++',
+                  'cpp': 'C++', 'pl': 'Perl', 'pm': 'Perl', 'scala': 'Scala', 'java': 'Java', 'go': 'Go',
+                  'py': 'Python', 'php' : 'PHP'}
 
 
 def get_file_type(filepath):
@@ -22,7 +24,10 @@ def get_file_type(filepath):
             return None
         extn = extn.lower()
         if extn not in comment_syntax.keys():
-            return None
+            if extn in extns_norm_map:
+                extn = extns_norm_map[extn]
+            else:
+                return None
         return extn
     except ValueError:
         return None
@@ -31,11 +36,16 @@ def get_file_type(filepath):
 def check_whole_line(line, file_type):
     if 'whole_line' not in comment_syntax[file_type]: return line
     whole_comm_pos = -1
-    comm_str = comment_syntax[file_type]['whole_line']
-    try:
-        whole_comm_pos = line.index(comm_str)
-    except ValueError:
-        pass
+    comm_strs = comment_syntax[file_type]['whole_line']
+    start_pos = 0
+    end_pos = len(line)
+    for comm_str in comm_strs:
+        start_pos = line.find(comm_str, start_pos, end_pos)
+        if start_pos != -1:
+            whole_comm_pos = start_pos
+            if start_pos == 0: break
+            end_pos = start_pos
+
     if whole_comm_pos != -1:
         line = line[:whole_comm_pos]
     return line
@@ -74,11 +84,14 @@ def count_real_lines(lines, file_type):
         if line == '': continue
         line = check_whole_line(line, file_type)
         if line == '': continue
-        comment_started, increment = check_for_countable_line(comment_started, line,file_type)
+        increment = True
+        if 'start' in comment_syntax[file_type]:
+            comment_started, increment = check_for_countable_line(comment_started, line, file_type)
         if increment: reallines += 1
     return reallines
 
-def countlines_in(dirstart):
+
+def countlines_in(dirstart, real_lines):
     try:
         direntries = listdir(dirstart)
     except OSError as e:
@@ -97,13 +110,16 @@ def countlines_in(dirstart):
             fp = open(filepath, 'r')
             lines = fp.readlines()
             fp.close()
-            reallines = count_real_lines(lines, file_type)
-            print filepath, reallines
+            c_lines = count_real_lines(lines, file_type)
+            if file_type not in real_lines:
+                real_lines[file_type] = c_lines
+            else:
+                real_lines[file_type] += c_lines
         except IOError as e:
             pass
 
     for next_level_dir in next_level_dirs:
-        countlines_in(next_level_dir)
+        countlines_in(next_level_dir, real_lines)
 
 
 if __name__ == '__main__':
@@ -121,5 +137,8 @@ if __name__ == '__main__':
     if not path.isdir(options.start_dir):
         print options.start_dir, ' is not a directory'
         sys.exit(1)
-    countlines_in(options.start_dir)
 
+    real_lines = {}
+    countlines_in(options.start_dir, real_lines)
+    for file_type, lines in real_lines.iteritems():
+        print "File-type:%10s  Line-count:%8d" % (file_type, lines,)
