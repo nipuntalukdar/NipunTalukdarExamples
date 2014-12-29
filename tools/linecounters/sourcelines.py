@@ -41,7 +41,7 @@ def check_whole_line(line, file_type):
     start_pos = 0
     end_pos = len(line)
     for comm_str in comm_strs:
-        start_pos = line.encode(encoding='UTF-8', errors='strict').find(comm_str, start_pos, end_pos)
+        start_pos = line.find(comm_str, start_pos, end_pos)
         if start_pos != -1:
             whole_comm_pos = start_pos
             if start_pos == 0: break
