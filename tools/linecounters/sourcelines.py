@@ -2,6 +2,7 @@ __author__ = 'geet'
 
 from os import listdir, path
 import sys
+import re
 import json
 from optparse import OptionParser
 
@@ -15,6 +16,7 @@ comment_syntax = {'C': cstyle_comments, 'Java': cstyle_comments, 'C++': cstyle_c
 extns_norm_map = {'c': 'C', 'h': 'C', 'c++': 'C++', 'cxx': 'C++', 'hpp': 'C++', 'hxx': 'C++', 'g++': 'C++', 'cc': 'C++',
                   'cpp': 'C++', 'pl': 'Perl', 'pm': 'Perl', 'scala': 'Scala', 'java': 'Java', 'go': 'Go',
                   'py': 'Python', 'php': 'PHP'}
+skipdir_re = None
 
 
 def get_file_type(filepath):
@@ -93,6 +95,8 @@ def count_real_lines(lines, file_type):
 
 
 def countlines_in(dirstart, real_lines):
+    if skipdir_re is not None:
+        if skipdir_re.match(dirstart): return
     try:
         direntries = listdir(dirstart)
     except OSError as e:
@@ -120,6 +124,8 @@ def countlines_in(dirstart, real_lines):
             pass
 
     for next_level_dir in next_level_dirs:
+        if skipdir_re is not None:
+            if skipdir_re.match(next_level_dir): continue
         countlines_in(next_level_dir, real_lines)
 
 
@@ -180,6 +186,8 @@ if __name__ == '__main__':
                       help='comment syntrax description file')
     parser.add_option('-d', '--root-source-dir', dest='start_dir', metavar='SOURCE_ROOT_DIR',
                       help='root directory for source code')
+    parser.add_option('-s', '--skip_dirs', dest='skip_dir_pattern', metavar='SKIP_DIR_REGEX',
+                      help='regular expression for directory name to be skipped')
 
     (options, args) = parser.parse_args()
     if options.start_dir is None:
@@ -194,6 +202,9 @@ if __name__ == '__main__':
         if not update_comment_syntax(options.comment_file):
             print 'Some problem in updating comment syntax'
             sys.exit(1)
+ 
+    if options.skip_dir_pattern is not None:
+        skipdir_re = re.compile(options.skip_dir_pattern)
 
     real_lines = {}
     countlines_in(options.start_dir, real_lines)
