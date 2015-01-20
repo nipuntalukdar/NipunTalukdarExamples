@@ -1,3 +1,4 @@
+#!/usr/bin/python
 __author__ = 'geet'
 
 from os import listdir, path
@@ -10,12 +11,14 @@ cstyle_comments = {'whole_line': ['//'], 'start': '/*', 'end': '*/'}
 python_comments = {'whole_line': ['#'], 'start': "'''", 'end': "'''"}
 perl_comments = {'whole_line': ['#']}
 php_comments = {'whole_line': ['//', '#'], 'start': '/*', 'end': '*/'}
+ruby_comments = {'whole_line': ['#'], 'start': '=begin', 'end': '=end'}
 comment_syntax = {'C': cstyle_comments, 'Java': cstyle_comments, 'C++': cstyle_comments, 'Scala': cstyle_comments,
-                  'Go': cstyle_comments, 'Perl': perl_comments, 'Python': python_comments, 'PHP': php_comments}
+                  'Go': cstyle_comments, 'Perl': perl_comments, 'Python': python_comments, 'PHP':
+                  php_comments, 'Ruby' : ruby_comments}
 
 extns_norm_map = {'c': 'C', 'h': 'C', 'c++': 'C++', 'cxx': 'C++', 'hpp': 'C++', 'hxx': 'C++', 'g++': 'C++', 'cc': 'C++',
                   'cpp': 'C++', 'pl': 'Perl', 'pm': 'Perl', 'scala': 'Scala', 'java': 'Java', 'go': 'Go',
-                  'py': 'Python', 'php': 'PHP'}
+                  'py': 'Python', 'php': 'PHP', 'rb' : 'Ruby'}
 skipdir_re = None
 
 
