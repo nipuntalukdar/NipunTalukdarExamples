@@ -37,7 +37,7 @@ public class FileSystemUtils {
 	public static void callMainSearch(String dir){
 		try {
 			Searcher s = new Searcher(dir);
-			s.termQuery("treeset");
+			s.termQuery("zookeeper");
 		} catch (IOException e) {
 			e.printStackTrace();
 		}

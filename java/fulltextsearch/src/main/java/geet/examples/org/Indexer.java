@@ -64,16 +64,16 @@ public class Indexer implements Comparable<Indexer>{
 			if (fields.containsKey(key.toLowerCase())) {
 				if (analyzedFields.contains(fields.get(key.toLowerCase()))) {
 					doc.add(new TextField(fields.get(key.toLowerCase()), metaData
-							.get(key), Field.Store.YES));
+							.get(key), Field.Store.NO));
 				} else {
 					doc.add(new StringField(fields.get(key.toLowerCase()), metaData
-							.get(key), Field.Store.YES));
+							.get(key), Field.Store.NO));
 				}
 			}
 		}
 		
-		doc.add(new TextField(FILEPATH_FIELD, filePath, Field.Store.YES));
-		doc.add(new TextField(CONTENT_FIELD, content, Field.Store.YES));
+		doc.add(new TextField(FILEPATH_FIELD, filePath, Field.Store.NO));
+		doc.add(new TextField(CONTENT_FIELD, content, Field.Store.NO));
 		try {
 			writer.addDocument(doc);
 			writer.commit();
