@@ -73,7 +73,7 @@ def metric_init(params):
                     'slope': 'both',
                     'format': '%f',
                     'description': 'Disk I/O ',
-                    'groups': 'Disk I/O Alcatraz'}
+                    'groups': 'Disk I/O Example'}
                 descriptors.append(dsc)
         return descriptors
     def metric_cleanup():
