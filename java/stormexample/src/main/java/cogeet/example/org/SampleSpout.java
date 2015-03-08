@@ -14,13 +14,13 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Values;
 
 public class SampleSpout extends BaseRichSpout {
-
+	private static final long serialVersionUID = 123334L;
 	private SpoutOutputCollector collector = null;
 	private int unacknowlegded = 0;
 	private Random x = null;
 
 	@Override
-	public void open(Map conf, TopologyContext context,
+	public void open(@SuppressWarnings("rawtypes") Map conf, TopologyContext context,
 			SpoutOutputCollector collector) {
 		System.out.println("Spout is opened");
 		this.collector = collector;

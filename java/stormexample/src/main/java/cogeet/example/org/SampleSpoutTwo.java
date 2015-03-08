@@ -1,10 +1,10 @@
 package cogeet.example.org;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
 import java.util.UUID;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import backtype.storm.spout.SpoutOutputCollector;
 import backtype.storm.task.TopologyContext;
@@ -17,14 +17,15 @@ public class SampleSpoutTwo extends BaseRichSpout {
 
 	private SpoutOutputCollector collector = null;
 	private int unacknowlegded = 0;
-	private Random x = null;
+	final static long serialVersionUID = 0x1233444;
+	private Logger logger = null;
 
 	@Override
-	public void open(Map conf, TopologyContext context,
-			SpoutOutputCollector collector) {
-		System.out.println("SpoutTwo is opened");
+	public void open(@SuppressWarnings("rawtypes") Map conf,
+			TopologyContext context, SpoutOutputCollector collector) {
+		logger = LoggerFactory.getLogger(SampleSpoutTwo.class);
+		logger.debug("SpoutTwo is opened");
 		this.collector = collector;
-		x = new Random();
 	}
 
 	@Override
@@ -35,23 +36,26 @@ public class SampleSpoutTwo extends BaseRichSpout {
 		String x = UUID.randomUUID().toString();
 		collector.emit(new Values(new GroupingKey("hellloo-" + x)), x);
 		unacknowlegded++;
+		try {
+			Thread.sleep(2000);
+		} catch (InterruptedException e) {
+		}
 	}
 
 	@Override
 	public void declareOutputFields(OutputFieldsDeclarer declarer) {
 		declarer.declare(new Fields(Consts.SPOUTTWO_FIELD));
-		System.out.println("Out put fields declared");
 	}
 
 	@Override
 	public void ack(Object id) {
 		unacknowlegded--;
-		System.out.println("Ack received for " + (String) id);
+		logger.debug("Ack received for {}", (String)id);
 	}
 
 	@Override
 	public void fail(Object id) {
 		unacknowlegded--;
-		System.out.println("Failure notification received for " + (String) id);
+		logger.debug("Failure for {}", (String) id);
 	}
 }

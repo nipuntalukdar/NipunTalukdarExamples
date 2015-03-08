@@ -29,30 +29,22 @@ public class TopologyStarter {
 			context.reset();
 			configurator.doConfigure(log4jConfigFile);
 		} catch (JoranException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		
 		System.setProperty("java.io.tmpdir", "/tmp/stormtmp");
 		System.setProperty("storm.conf.file", "storm.yaml");
 		TopologyBuilder tbuilder = new TopologyBuilder();
-		//tbuilder.setSpout("SampleSpout", new SampleSpout(), 16);
 		tbuilder.setSpout("SampleSpoutTwo", new SampleSpoutTwo(), 16);
-		//Fields flds = new Fields(Consts.SPOUT_FIELD_1, Consts.SPOUT_FIELD_2);
-		//Fields flds2 = new Fields(Consts.BOLTA_FIELD_1, Consts.BOLTA_FIELD_2);
 		Fields flds3 = new Fields(Consts.SPOUTTWO_FIELD);
-		//tbuilder.setBolt("bolta", new SampleBoltA(), 32).localFieldsGrouping(
-		//		"SampleSpout",flds);
-		tbuilder.setBolt("boltc", new SampleBoltC(), 72).localFieldsGrouping(
+		tbuilder.setBolt("boltc", new SampleBoltC(), 72).fieldsGrouping(
 				"SampleSpoutTwo",flds3);
-		//tbuilder.setBolt("boltb",  new SampleBoltB(), 64).localFieldsGrouping("bolta", flds2); 
 		Config conf = new Config();
 		conf.setMaxTaskParallelism(128);
 		conf.setNumWorkers(12);
 		conf.setNumAckers(12);
 		conf.setDebug(false);
 		conf.put(Config.STORM_LOCAL_DIR, "/tmp/stormtmp");
-		conf.put(Config.TOPOLOGY_OPTIMIZE, false);
 		conf.put(Config.TOPOLOGY_DEBUG, false);
 		conf.registerSerialization(Sample.class, SampleSerializer.class);
 		conf.registerSerialization(Sample2.class, Sample2Serializer.class);

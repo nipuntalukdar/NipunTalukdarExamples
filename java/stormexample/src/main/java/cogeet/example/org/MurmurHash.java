@@ -1,3 +1,8 @@
+package cogeet.example.org;
+
+import java.nio.ByteBuffer;
+
+
 public class MurmurHash {
 	public static int hash32(ByteBuffer data, int offset, int length, int seed) {
 		int m = 0x5bd1e995;
