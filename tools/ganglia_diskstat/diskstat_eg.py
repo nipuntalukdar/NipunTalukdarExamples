@@ -1,10 +1,12 @@
 import sys 
 import os
 import re
+import time
 import subprocess
 
 descriptors = []
 diskstats = {}
+lastupdate_time = 0
 metric_elems = {'rrqm_sec' : 'Number', 'wrqm_sec'  : 'Number', 'read_sec' : 'Number' , 'write_sec':
         'Number' , 'read_sector_kb_sec' : 'KB/Sec',
         'write_sector_kb_sec' : 'KB/Sec','avgrq-sz' : 'Length' , 'avgqu-sz' : 'Length', 'await' :
@@ -15,7 +17,8 @@ metric_elems = {'rrqm_sec' : 'Number', 'wrqm_sec'  : 'Number', 'read_sec' : 'Num
 def get_disk_stats():
     global diskstats
     diskstats = {}
-    output = subprocess.Popen(['iostat' , '-x', '-d', '2' , '-N', '3'] , stdout=subprocess.PIPE ).communicate()[0]
+    output = subprocess.Popen(['iostat' , '-x', '-d', '1' , '-N', '4'] , stdout=subprocess.PIPE ).communicate()[0]
+    lastupdate_time = time.time()
     linestemp = re.split('\n+', output)
     linetempc = len(linestemp)
     i = 0
@@ -48,6 +51,8 @@ def get_disk_stats():
                 'r_awit' : elems[10], 'w_await' : elems[11], 'svctm' : elems[12], 'percentutil' : elems[13]}
 
 def diskstatfun(name):
+    if time.time() > (lastupdate_time + 10):
+        get_disk_stats()
     device, metrc = name.split('__')
     if device not in diskstats:
         return -11111.1111
