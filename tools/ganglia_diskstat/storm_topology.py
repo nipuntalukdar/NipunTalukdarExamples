@@ -7,6 +7,7 @@ from thrift.transport import TTransport, TSocket
 from thrift.protocol import TBinaryProtocol
 from stormpy.storm import Nimbus, ttypes
 
+topology_found = True
 descriptors = list()
 topology = ''
 serialfile_dir = '/tmp'
@@ -29,6 +30,8 @@ bolt_stats = {'Executors' : ['Count', '%u'], 'Tasks' : ['Count', '%u'],
                 'Acked' : ['Count', '%u'],
                 'Failed' : ['Count', '%f']}
 
+diff_cols = [ 'Acked', 'Failed', 'Executed', 'Transferred', 'Emitted' ]
+
 overall = { 'Executor count' : ['Count' , '%u'],
             'Worker count' : ['Count', '%u'],
             'Task count' : ['Count', '%u'],
@@ -39,12 +42,15 @@ overallstats = {}
 component_task_count = {}
 component_exec_count = {}
 lastchecktime = 0
-maxinterval = 4
+maxinterval = 6
 bolt_array = []
 spout_array = []
 
 
-def normalize_stats(stats):
+def normalize_stats(stats, duration):
+    for k in stats:
+        print k, stats[k]
+    print duration
     pass
 def freshen():
     global lastchecktime
@@ -55,9 +61,15 @@ def freshen():
         component_task_count.clear()
         component_exec_count.clear()
         get_topology_stats(topology)
+        if not topology_found:
+            return
         savedlastchecktime = 0
         tmpsavestats = None
-        inf = open('/tmp/save_stats_for' + topology + '.pk', 'rb')
+        inf = None
+        try:
+            inf = open('/tmp/save_stats_for' + topology + '.pk', 'rb')
+        except IOError as e:
+            pass
         if inf is not None:
             try:
                 tmpsavestats = pickle.load(inf)
@@ -80,7 +92,8 @@ def freshen():
                             if key == 'Execute Latency' or key == 'Process Latency': continue
                             if key not in tmpsavestats: continue
                             if key not in boltspoutstats: continue
-                            stats_new[key] -= stats_old[key]
+                            if key in diff_cols:
+                                stats_new[key] -= stats_old[key]
                 for spout in spout_array:
                     if spout in tmpsavestats and spout in boltspoutstats:
                         stats_new = boltspoutstats[spout]
@@ -89,7 +102,8 @@ def freshen():
                             if key == 'Complete Latency': continue
                             if key not in stats_new: continue
                             if key not in stats_old: continue
-                            stats_new[key] -= stats_old[key]
+                            if key in diff_cols:
+                                stats_new[key] -= stats_old[key]
                 normalize_stats(boltspoutstats, lastchecktime - savedlastchecktime)
             else:
                 normalize_stats(boltspoutstats, overallstats['Uptime secs'])
@@ -103,11 +117,15 @@ def get_avg(arr):
 
 def callback_boltspout(name):
     freshen()
+    if not topology_found:
+        return -1
     bolt, statname = name.split('_')
     return boltspoutstats[bolt][statname]
 
 def callback_overall(name):
     freshen()
+    if not topology_found:
+        return -1
     return overallstats[name]
 
 def update_task_count(component_name, count):
@@ -147,7 +165,10 @@ def update_avg_stats(stats, store, boltname, statname):
 
 def get_topology_stats(toplogyname):
     try:
+        global topology_found
+        topology_found = False
         transport = TSocket.TSocket('127.0.0.1' , 6627)
+        transport.setTimeout(1000)
         framedtrasp = TTransport.TFramedTransport(transport)
         protocol = TBinaryProtocol.TBinaryProtocol(framedtrasp)
         client = Nimbus.Client(protocol)
@@ -156,6 +177,7 @@ def get_topology_stats(toplogyname):
         ret = client.getClusterInfo()
         for tsummary in ret.topologies:
             if tsummary.name == toplogyname:
+                topology_found = True
                 overallstats['Executor count'] = tsummary.num_executors
                 overallstats['Task count'] = tsummary.num_tasks
                 overallstats['Worker count'] = tsummary.num_workers
@@ -163,31 +185,32 @@ def get_topology_stats(toplogyname):
                 tinfo = client.getTopologyInfo(tsummary.id)
                 for exstat in tinfo.executors:
                     stats = exstat.stats
-                    update_whole_num_stat_special(stats.emitted["600"], boltspoutstats,
+                    print stats.emitted
+                    update_whole_num_stat_special(stats.emitted[":all-time"], boltspoutstats,
                             exstat.component_id, 'Emitted')
-                    update_whole_num_stat_special(stats.transferred["600"], boltspoutstats,
+                    update_whole_num_stat_special(stats.transferred[":all-time"], boltspoutstats,
                             exstat.component_id, 'Transferred')
 
                     numtask = exstat.executor_info.task_end - exstat.executor_info.task_end + 1
                     update_task_count(exstat.component_id, numtask)
                     update_exec_count(exstat.component_id, 1)
                     if stats.specific.bolt is not None:
-                        update_whole_num_stat(stats.specific.bolt.acked["600"], boltspoutstats,
+                        update_whole_num_stat(stats.specific.bolt.acked[":all-time"], boltspoutstats,
                                 exstat.component_id, 'Acked')
-                        update_whole_num_stat(stats.specific.bolt.failed["600"], boltspoutstats,
+                        update_whole_num_stat(stats.specific.bolt.failed[":all-time"], boltspoutstats,
                                 exstat.component_id, 'Failed')
-                        update_whole_num_stat(stats.specific.bolt.executed["600"], boltspoutstats,
+                        update_whole_num_stat(stats.specific.bolt.executed[":all-time"], boltspoutstats,
                                 exstat.component_id, 'Executed')
                         update_avg_stats(stats.specific.bolt.process_ms_avg["600"], boltspoutstats,
                                 exstat.component_id, 'process_ms_avg')
                         update_avg_stats(stats.specific.bolt.execute_ms_avg["600"], boltspoutstats,
                                 exstat.component_id, 'execute_ms_avg')
                     if stats.specific.spout is not None:
-                        update_whole_num_stat(stats.specific.spout.acked["600"], boltspoutstats,
+                        update_whole_num_stat(stats.specific.spout.acked[":all-time"], boltspoutstats,
                                 exstat.component_id, 'Acked')
-                        update_whole_num_stat(stats.specific.spout.failed["600"], boltspoutstats,
+                        update_whole_num_stat(stats.specific.spout.failed[":all-time"], boltspoutstats,
                                 exstat.component_id, 'Failed')
-                        update_avg_stats(stats.specific.spout.complete_ms_avg["600"], boltspoutstats,
+                        update_avg_stats(stats.specific.spout.complete_ms_avg[":all-time"], boltspoutstats,
                                 exstat.component_id, 'complete_ms_avg')
         
         if '__acker' in boltspoutstats:
