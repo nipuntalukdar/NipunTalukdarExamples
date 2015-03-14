@@ -7,17 +7,19 @@ from thrift.transport import TTransport, TSocket
 from thrift.protocol import TBinaryProtocol
 from stormpy.storm import Nimbus, ttypes
 
+clusterinfo = None
 topology_found = True
 descriptors = list()
 topology = ''
+topologies = []
 serialfile_dir = '/tmp'
 topology_summary_cols_map = {'status' : 'Status', 'num_workers' : 'Worker Count', \
-        'num_executors' : 'Executor count', 'uptime_secs': 'Uptime', 'num_tasks' : 'Task count'}
+        'num_executors' : 'Executor_count', 'uptime_secs': 'Uptime', 'num_tasks' : 'Task_count'}
 
 spout_stats = {'Executors' : ['Count', '%u'], 'Tasks' : ['Count', '%u'],
                 'Emitted' : ['Count', '%u'], 
                 'Transferred' : ['Count', '%u'], 
-                'Complete Latency' : ['ms', '%f'],
+                'CompleteLatency' : ['ms', '%f'],
                 'Acked' : ['Count', '%u'],
                 'Failed' : ['Count', '%f']}
 
@@ -25,33 +27,48 @@ bolt_stats = {'Executors' : ['Count', '%u'], 'Tasks' : ['Count', '%u'],
                 'Emitted' : ['Count', '%u'], 
                 'Executed' : ['Count', '%u'], 
                 'Transferred' : ['Count', '%u'], 
-                'Execute Latency' : ['ms', '%f'],
-                'Process Latency' : ['ms', '%f'],
+                'ExecuteLatency' : ['ms', '%f'],
+                'ProcessLatency' : ['ms', '%f'],
                 'Acked' : ['Count', '%u'],
                 'Failed' : ['Count', '%f']}
 
 diff_cols = [ 'Acked', 'Failed', 'Executed', 'Transferred', 'Emitted' ]
 
-overall = { 'Executor count' : ['Count' , '%u'],
-            'Worker count' : ['Count', '%u'],
-            'Task count' : ['Count', '%u'],
-            'Uptime secs' : ['Count', '%u'] }
+overall = { 'Executor_count' : ['Count' , '%u'],
+            'Worker_count' : ['Count', '%u'],
+            'Task_count' : ['Count', '%u'],
+            'Uptime_secs' : ['Count', '%u'] }
 
 boltspoutstats = {}
 overallstats = {}
 component_task_count = {}
 component_exec_count = {}
 lastchecktime = 0
+lastinfotime = 0
 maxinterval = 6
 bolt_array = []
 spout_array = []
 
+def get_avg(arr):
+    if len(arr) < 1:
+        return 0
+    return sum(arr) / len(arr)
 
 def normalize_stats(stats, duration):
     for k in stats:
-        print k, stats[k]
-    print duration
-    pass
+        statsk = stats[k]
+        if 'Emitted' in statsk and duration > 0:
+            if statsk['Emitted'] > 0:
+                statsk['Emitted'] = statsk['Emitted'] / duration
+        if 'Acked' in statsk and duration > 0:
+            if statsk['Acked'] > 0:
+                statsk['Acked'] = statsk['Acked'] / duration
+        if 'Executed' in statsk and duration > 0:
+            print statsk['Executed']
+            if statsk['Executed'] > 0:
+                statsk['Executed'] = statsk['Executed'] / duration
+
+    print stats
 def freshen():
     global lastchecktime
     if time() > (lastchecktime + maxinterval):
@@ -82,16 +99,16 @@ def freshen():
             pickle.dump(boltspoutstats, of)
             pickle.dump(lastchecktime, of)
             of.close()
-        if overallstats['Uptime secs'] > (lastchecktime - savedlastchecktime):
+        if overallstats['Uptime_secs'] > (lastchecktime - savedlastchecktime):
             if tmpsavestats is not None:
                 for bolt in bolt_array:
                     if bolt in tmpsavestats and bolt in boltspoutstats:
                         stats_new = boltspoutstats[bolt]
                         stats_old = tmpsavestats[bolt]
                         for key in bolt_stats:
-                            if key == 'Execute Latency' or key == 'Process Latency': continue
-                            if key not in tmpsavestats: continue
-                            if key not in boltspoutstats: continue
+                            if key == 'ExecuteLatency' or key == 'ProcessLatency': continue
+                            if key not in stats_new: continue
+                            if key not in stats_old: continue
                             if key in diff_cols:
                                 stats_new[key] -= stats_old[key]
                 for spout in spout_array:
@@ -99,21 +116,17 @@ def freshen():
                         stats_new = boltspoutstats[spout]
                         stats_old = tmpsavestats[spout]
                         for key in spout_stats:
-                            if key == 'Complete Latency': continue
+                            if key == 'CompleteLatency': continue
                             if key not in stats_new: continue
                             if key not in stats_old: continue
                             if key in diff_cols:
                                 stats_new[key] -= stats_old[key]
                 normalize_stats(boltspoutstats, lastchecktime - savedlastchecktime)
             else:
-                normalize_stats(boltspoutstats, overallstats['Uptime secs'])
+                normalize_stats(boltspoutstats, overallstats['Uptime_secs'])
         else:
-            normalize_stats(boltspoutstats, overallstats['Uptime secs'])
+            normalize_stats(boltspoutstats, overallstats['Uptime_secs'])
                 
-def get_avg(arr):
-    if len(arr) < 1:
-        return 0
-    return sum(arr) / len(arr)
 
 def callback_boltspout(name):
     freshen()
@@ -144,7 +157,8 @@ def update_whole_num_stat_special(stats, store, boltname, statname):
     if statname not in store[boltname]:
         store[boltname][statname] = 0
     for k in stats:
-        if k == '__metrics' or k == '__ack_init' or k == '__ack_ack': continue
+        if k == '__metrics' or k == '__ack_init' or k == '__ack_ack' or k == '__system': 
+            continue
         store[boltname][statname] += stats[k]
 
 def update_whole_num_stat(stats, store, boltname, statname):
@@ -163,9 +177,17 @@ def update_avg_stats(stats, store, boltname, statname):
     for k in stats:
         store[boltname][statname].append(stats[k])
 
+def get_topology_stats_for(topologies):
+    all_topology_stats.clear()
+    for topology in topologies:
+        all_topology_stats[topology] = get_topology_stats(topology)
+
+
 def get_topology_stats(toplogyname):
     try:
         global topology_found
+        global clusterinfo
+        global lastinfotime
         topology_found = False
         transport = TSocket.TSocket('127.0.0.1' , 6627)
         transport.setTimeout(1000)
@@ -173,19 +195,19 @@ def get_topology_stats(toplogyname):
         protocol = TBinaryProtocol.TBinaryProtocol(framedtrasp)
         client = Nimbus.Client(protocol)
         framedtrasp.open()
-
-        ret = client.getClusterInfo()
-        for tsummary in ret.topologies:
+        if (lastinfotime + 4) < time():
+            lastinfotime = time()
+            clusterinfo = client.getClusterInfo()
+        for tsummary in clusterinfo.topologies:
             if tsummary.name == toplogyname:
                 topology_found = True
-                overallstats['Executor count'] = tsummary.num_executors
-                overallstats['Task count'] = tsummary.num_tasks
-                overallstats['Worker count'] = tsummary.num_workers
-                overallstats['Uptime secs'] = tsummary.uptime_secs
+                overallstats['Executor_count'] = tsummary.num_executors
+                overallstats['Task_count'] = tsummary.num_tasks
+                overallstats['Worker_count'] = tsummary.num_workers
+                overallstats['Uptime_secs'] = tsummary.uptime_secs
                 tinfo = client.getTopologyInfo(tsummary.id)
                 for exstat in tinfo.executors:
                     stats = exstat.stats
-                    print stats.emitted
                     update_whole_num_stat_special(stats.emitted[":all-time"], boltspoutstats,
                             exstat.component_id, 'Emitted')
                     update_whole_num_stat_special(stats.transferred[":all-time"], boltspoutstats,
@@ -218,13 +240,16 @@ def get_topology_stats(toplogyname):
         for key in boltspoutstats:
             if 'complete_ms_avg' in boltspoutstats[key]:
                 avg = get_avg(boltspoutstats[key]['complete_ms_avg'])
-                boltspoutstats[key]['Complete Latency'] = avg
+                boltspoutstats[key]['CompleteLatency'] = avg
+                del boltspoutstats[key]['complete_ms_avg']
             if 'process_ms_avg' in boltspoutstats[key]:
                 avg = get_avg(boltspoutstats[key]['process_ms_avg'])
-                boltspoutstats[key]['Process Latency'] = avg
+                boltspoutstats[key]['ProcessLatency'] = avg
+                del boltspoutstats[key]['process_ms_avg']
             if 'execute_ms_avg' in boltspoutstats[key]:
                 avg = get_avg(boltspoutstats[key]['execute_ms_avg'])
-                boltspoutstats[key]['Execute Latency'] = avg
+                boltspoutstats[key]['ExecuteLatency'] = avg
+                del boltspoutstats[key]['execute_ms_avg']
 
         for key in component_task_count:
             if key in boltspoutstats:
@@ -236,6 +261,7 @@ def get_topology_stats(toplogyname):
         framedtrasp.close()
 
     except Exception as e:
+        clusterinfo = None
         print e
 
 def metric_init(params):
@@ -293,4 +319,4 @@ if __name__ == '__main__':
     metric_init(params)
     for d in descriptors:
         v = d['call_back'](d['name'])
-        print d['name'], v
+        print 'OK', d['name'], v
