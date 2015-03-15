@@ -2,6 +2,7 @@ import re
 import pickle
 import copy
 import md5
+import logging
 from time import time
 from thrift import Thrift
 from thrift.transport import TTransport, TSocket
@@ -45,6 +46,11 @@ maxinterval = 6
 all_topology_stats = {}
 bolt_array = {}
 spout_array = {}
+nimbus_host = '127.0.0.1'
+nimbus_port = 6627
+logging.basicConfig(filename='/tmp/storm_topology.log',level=logging.DEBUG,\
+        format='%(asctime)s  %(levelname)s line:%(lineno)d %(message)s'\
+        ,filemode='w')
 
 def get_avg(arr):
     if len(arr) < 1:
@@ -74,14 +80,17 @@ def freshen_topology(topology):
     try:
         inf = open(filename, 'rb')
     except IOError as e:
-        print e
+        logging.warn(e)
     if inf is not None:
         try:
             tmpsavestats = pickle.load(inf)
             savedlastchecktime = pickle.load(inf)
         except EOFError as e:
-            print e
+            print e.message()
         inf.close()
+    if not all_topology_stats[topology]['topology_stats_got']:
+        logging.warn('Info not got for topology ' + topology) 
+        return
     overallstats = all_topology_stats[topology]['overallstats']
     boltspoutstats = all_topology_stats[topology]['boltspoutstats']
     of = open(filename, 'wb')
@@ -130,7 +139,7 @@ def callback_boltspout(name):
     freshen()
     topology_mod, bolt, statname = name.split('_')
     topology = toplogy_mods[topology_mod]
-    if len(all_topology_stats[topology].keys()) == 0:
+    if not all_topology_stats[topology]['topology_stats_got']:
         return -1
     return all_topology_stats[topology]['boltspoutstats'][bolt][statname]
 
@@ -138,7 +147,7 @@ def callback_overall(name):
     freshen()
     topology_mod, name = name.split('_')
     topology = toplogy_mods[topology_mod]
-    if len(all_topology_stats[topology].keys()) == 0:
+    if not all_topology_stats[topology]['topology_stats_got']:
         return -1
     return all_topology_stats[topology]['overallstats'][name]
 
@@ -185,94 +194,95 @@ def get_topology_stats_for(topologies):
 
 
 def refresh_topology_stats():
-        for t in topologies:
-            all_topology_stats[t] = {}
-        global clusterinfo
-        try:
-            transport = TSocket.TSocket('127.0.0.1' , 6627)
-            transport.setTimeout(1000)
-            framedtrasp = TTransport.TFramedTransport(transport)
-            protocol = TBinaryProtocol.TBinaryProtocol(framedtrasp)
-            client = Nimbus.Client(protocol)
-            framedtrasp.open()
-            boltspoutstats = None
-            component_task_count = None
-            component_exec_count = None
-            clusterinfo = client.getClusterInfo()
-            for tsummary in clusterinfo.topologies:
-                if tsummary.name in topologies:
-                    toplogyname = tsummary.name
-                    overallstats = {}
-                    overallstats['ExecutorCount'] = tsummary.num_executors
-                    overallstats['TaskCount'] = tsummary.num_tasks
-                    overallstats['WorkerCount'] = tsummary.num_workers
-                    overallstats['UptimeSecs'] = tsummary.uptime_secs
-                    all_topology_stats[toplogyname]['overallstats'] = overallstats
-                    boltspoutstats = {}
-                    component_task_count = {}
-                    component_exec_count = {}
-                    all_topology_stats[toplogyname]['boltspoutstats'] = boltspoutstats
-                    all_topology_stats[toplogyname]['component_task_count'] = component_task_count
-                    all_topology_stats[toplogyname]['component_exec_count'] = component_exec_count
+    logging.debug('Refreshing topology stats')
+    for t in topologies:
+        all_topology_stats[t] = {'topology_stats_got' : False}
+    global clusterinfo
+    try:
+        transport = TSocket.TSocket(nimbus_host , nimbus_port)
+        transport.setTimeout(1000)
+        framedtrasp = TTransport.TFramedTransport(transport)
+        protocol = TBinaryProtocol.TBinaryProtocol(framedtrasp)
+        client = Nimbus.Client(protocol)
+        framedtrasp.open()
+        boltspoutstats = None
+        component_task_count = None
+        component_exec_count = None
+        clusterinfo = client.getClusterInfo()
+        for tsummary in clusterinfo.topologies:
+            if tsummary.name in topologies:
+                toplogyname = tsummary.name
+                overallstats = {}
+                overallstats['ExecutorCount'] = tsummary.num_executors
+                overallstats['TaskCount'] = tsummary.num_tasks
+                overallstats['WorkerCount'] = tsummary.num_workers
+                overallstats['UptimeSecs'] = tsummary.uptime_secs
+                all_topology_stats[toplogyname]['overallstats'] = overallstats
+                boltspoutstats = {}
+                component_task_count = {}
+                component_exec_count = {}
+                all_topology_stats[toplogyname]['boltspoutstats'] = boltspoutstats
+                all_topology_stats[toplogyname]['component_task_count'] = component_task_count
+                all_topology_stats[toplogyname]['component_exec_count'] = component_exec_count
+                tinfo = client.getTopologyInfo(tsummary.id)
+                all_topology_stats[toplogyname]['topology_stats_got'] = True
+                for exstat in tinfo.executors:
+                    stats = exstat.stats
+                    update_whole_num_stat_special(stats.emitted[":all-time"], boltspoutstats,
+                            exstat.component_id, 'Emitted')
+                    update_whole_num_stat_special(stats.transferred[":all-time"], boltspoutstats,
+                            exstat.component_id, 'Transferred')
 
-                    tinfo = client.getTopologyInfo(tsummary.id)
-                    for exstat in tinfo.executors:
-                        stats = exstat.stats
-                        update_whole_num_stat_special(stats.emitted[":all-time"], boltspoutstats,
-                                exstat.component_id, 'Emitted')
-                        update_whole_num_stat_special(stats.transferred[":all-time"], boltspoutstats,
-                                exstat.component_id, 'Transferred')
+                    numtask = exstat.executor_info.task_end - exstat.executor_info.task_end + 1
+                    update_task_count(component_task_count, exstat.component_id, numtask)
+                    update_exec_count(component_exec_count, exstat.component_id, 1)
+                    if stats.specific.bolt is not None:
+                        update_whole_num_stat(stats.specific.bolt.acked[":all-time"], boltspoutstats,
+                                exstat.component_id, 'Acked')
+                        update_whole_num_stat(stats.specific.bolt.failed[":all-time"], boltspoutstats,
+                                exstat.component_id, 'Failed')
+                        update_whole_num_stat(stats.specific.bolt.executed[":all-time"], boltspoutstats,
+                                exstat.component_id, 'Executed')
+                        update_avg_stats(stats.specific.bolt.process_ms_avg["600"], boltspoutstats,
+                                exstat.component_id, 'process_ms_avg')
+                        update_avg_stats(stats.specific.bolt.execute_ms_avg["600"], boltspoutstats,
+                                exstat.component_id, 'execute_ms_avg')
+                    if stats.specific.spout is not None:
+                        update_whole_num_stat(stats.specific.spout.acked[":all-time"], boltspoutstats,
+                                exstat.component_id, 'Acked')
+                        update_whole_num_stat(stats.specific.spout.failed[":all-time"], boltspoutstats,
+                                exstat.component_id, 'Failed')
+                        update_avg_stats(stats.specific.spout.complete_ms_avg[":all-time"], boltspoutstats,
+                                exstat.component_id, 'complete_ms_avg')
+        
+        if '__acker' in boltspoutstats:
+            del boltspoutstats['__acker']
+        for key in boltspoutstats:
+            if 'complete_ms_avg' in boltspoutstats[key]:
+                avg = get_avg(boltspoutstats[key]['complete_ms_avg'])
+                boltspoutstats[key]['CompleteLatency'] = avg
+                del boltspoutstats[key]['complete_ms_avg']
+            if 'process_ms_avg' in boltspoutstats[key]:
+                avg = get_avg(boltspoutstats[key]['process_ms_avg'])
+                boltspoutstats[key]['ProcessLatency'] = avg
+                del boltspoutstats[key]['process_ms_avg']
+            if 'execute_ms_avg' in boltspoutstats[key]:
+                avg = get_avg(boltspoutstats[key]['execute_ms_avg'])
+                boltspoutstats[key]['ExecuteLatency'] = avg
+                del boltspoutstats[key]['execute_ms_avg']
 
-                        numtask = exstat.executor_info.task_end - exstat.executor_info.task_end + 1
-                        update_task_count(component_task_count, exstat.component_id, numtask)
-                        update_exec_count(component_exec_count, exstat.component_id, 1)
-                        if stats.specific.bolt is not None:
-                            update_whole_num_stat(stats.specific.bolt.acked[":all-time"], boltspoutstats,
-                                    exstat.component_id, 'Acked')
-                            update_whole_num_stat(stats.specific.bolt.failed[":all-time"], boltspoutstats,
-                                    exstat.component_id, 'Failed')
-                            update_whole_num_stat(stats.specific.bolt.executed[":all-time"], boltspoutstats,
-                                    exstat.component_id, 'Executed')
-                            update_avg_stats(stats.specific.bolt.process_ms_avg["600"], boltspoutstats,
-                                    exstat.component_id, 'process_ms_avg')
-                            update_avg_stats(stats.specific.bolt.execute_ms_avg["600"], boltspoutstats,
-                                    exstat.component_id, 'execute_ms_avg')
-                        if stats.specific.spout is not None:
-                            update_whole_num_stat(stats.specific.spout.acked[":all-time"], boltspoutstats,
-                                    exstat.component_id, 'Acked')
-                            update_whole_num_stat(stats.specific.spout.failed[":all-time"], boltspoutstats,
-                                    exstat.component_id, 'Failed')
-                            update_avg_stats(stats.specific.spout.complete_ms_avg[":all-time"], boltspoutstats,
-                                    exstat.component_id, 'complete_ms_avg')
-            
-            if '__acker' in boltspoutstats:
-                del boltspoutstats['__acker']
-            for key in boltspoutstats:
-                if 'complete_ms_avg' in boltspoutstats[key]:
-                    avg = get_avg(boltspoutstats[key]['complete_ms_avg'])
-                    boltspoutstats[key]['CompleteLatency'] = avg
-                    del boltspoutstats[key]['complete_ms_avg']
-                if 'process_ms_avg' in boltspoutstats[key]:
-                    avg = get_avg(boltspoutstats[key]['process_ms_avg'])
-                    boltspoutstats[key]['ProcessLatency'] = avg
-                    del boltspoutstats[key]['process_ms_avg']
-                if 'execute_ms_avg' in boltspoutstats[key]:
-                    avg = get_avg(boltspoutstats[key]['execute_ms_avg'])
-                    boltspoutstats[key]['ExecuteLatency'] = avg
-                    del boltspoutstats[key]['execute_ms_avg']
+        for key in component_task_count:
+            if key in boltspoutstats:
+                boltspoutstats[key]['Tasks'] = component_task_count[key]
+        for key in component_exec_count:
+            if key in boltspoutstats:
+                boltspoutstats[key]['Executors'] = component_exec_count[key]
 
-            for key in component_task_count:
-                if key in boltspoutstats:
-                    boltspoutstats[key]['Tasks'] = component_task_count[key]
-            for key in component_exec_count:
-                if key in boltspoutstats:
-                    boltspoutstats[key]['Executors'] = component_exec_count[key]
+        framedtrasp.close()
 
-            framedtrasp.close()
-
-        except Exception as e:
-            clusterinfo = None
-            print e
+    except Exception as e:
+        clusterinfo = None
+        logging.warn(e)
 
 
 def get_topology_stats(toplogyname):
@@ -285,7 +295,11 @@ def get_topology_stats(toplogyname):
     return all_topology_stats[toplogyname]
 
 def metric_init_topology(params):
-    global descriptors, topology
+    global descriptors, topology, nimbus_host, nimbus_port
+    if 'nimbus_host' in params:
+        nimbus_host = params['nimbus_host']
+    if 'nimbus_port' in params:
+        nimbus_port = params['nimbus_port']
     groupname = ''
     if 'topology' in params and len(params['topology']):
         groupname =  params['topology']
@@ -333,6 +347,7 @@ def metric_init_topology(params):
             'description': '',
             'groups': groupname} 
         descriptors.append(d)
+    logging.info('Inited metric for '+ groupname)
 
 def metric_init(params):
     global topologies
@@ -352,6 +367,7 @@ def metric_init(params):
         if t_spouts in params:
             alltops[t]['spouts'] = params[t_spouts]
     for t in alltops:
+        logging.info('Initing metric for ' + t)
         metric_init_topology(alltops[t])
 
 if __name__ == '__main__':
