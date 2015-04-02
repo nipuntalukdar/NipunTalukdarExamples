@@ -35,7 +35,7 @@ class LockServiceSehell(cmd.Cmd):
         if lockmode != LockServiceSehell.MODE_R and LockServiceSehell.MODE_W != lockmode:
             print 'Invalid lockmode'
         else:
-            self.lclient.lock(lockname, lockmode, client)
+            print self.lclient.lock(lockname, lockmode, client)
 
     def do_unlock(self, line):
         '''
@@ -50,6 +50,7 @@ class LockServiceSehell(cmd.Cmd):
         client = default_client
         if len(els) > 1:
             client = els[1]
+        print self.lclient.unlock(lockname, client) 
 
     def do_lockdetails(self, line):
         '''

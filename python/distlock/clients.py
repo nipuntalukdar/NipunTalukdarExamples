@@ -20,11 +20,11 @@ class Clients(threading.Thread):
     def add_client(self, clientId):
         self.mutex.acquire()
         curtime = int(time.time())
-        expirebucket = curtime + (63 - (63 & curtime)) + 64
+        expirebucket = curtime + (1023 - (1023 & curtime)) + 1024
         oldexpirebucket = -1
         if clientId in self.clients:
             oldtime = self.clients[clientId]
-            oldexpirebucket = oldtime + (63 - (63 & oldtime)) + 64
+            oldexpirebucket = oldtime + (1023 - (1023 & oldtime)) + 1024
         self.clients[clientId] = curtime
         if oldexpirebucket != expirebucket and oldexpirebucket != -1:
             self.buckets[oldexpirebucket].remove(clientId)
@@ -35,7 +35,6 @@ class Clients(threading.Thread):
         self.mutex.release()
     
     def heartbeat(self, clientId):
-        logging.debug('Heartbeat received for client ' + clientId)
         self.add_client(clientId)
 
     def is_registered(self, clientId):
@@ -58,7 +57,7 @@ class Clients(threading.Thread):
             ret = StatusMsg.CLIENT_NOT_REGISTERED
         else:
             oldtime = self.clients[clientId]
-            oldexpirebucket = oldtime + (63 - (63 & oldtime)) + 64
+            oldexpirebucket = oldtime + (1023 - (1023 & oldtime)) + 1024
             self.buckets[oldexpirebucket].remove(clientId)
             del self.clients[clientId]
             self.queue.put(clientId)
@@ -68,7 +67,6 @@ class Clients(threading.Thread):
     def run(self):
         while self.keep_running:
             time.sleep(30)
-            logging.debug('Cleanup thread is running')
             buckets = sorted(self.buckets.keys())
             curtime = int(time.time())
             curtime -= 10

@@ -43,12 +43,11 @@ class Lock:
         try:
             self.writeLocker = self.write_waits.popleft()
         except IndexError as e:
-            log.debug(e.message())
+            logging.debug(e)
         if self.writeLocker is not None:
-        
             # Notify the new owner TBD
-            StatusMsg.WRITE_LOCK_OWNER_CHANGED 
-        
+            return StatusMsg.WRITE_LOCK_OWNER_CHANGED 
+
         ''' 
         There was no write waits. Check if there are readwaits
         '''
@@ -80,11 +79,11 @@ class Lock:
         try:
             self.writeLocker = self.write_waits.popleft()
         except IndexError as e:
-            log.debug(e.message())
+            logging.debug(e.message())
         if self.writeLocker is not None:
             # Notify the new owner TBD
             self.locktype = LockOperation.WRITELOCK
-            StatusMsg.WRITE_LOCK_OWNER_CHANGED 
+            return StatusMsg.WRITE_LOCK_OWNER_CHANGED 
         
         '''
         Nobody wants this lock and hence can be removed
@@ -113,6 +112,7 @@ class Lock:
                 return StatusMsg.LOCK_CAN_BE_REMOVED
             
             # Announce all the readers that they got lock TBD 
+            self.locktype = LockOperation.READLOCK
             return StatusMsg.WRITE_CHANGED_TO_READ_LOCK   
         
         '''
@@ -155,11 +155,12 @@ class Lock:
         # Announce TBD 
         return StatusMsg.READ_CHANDGED_TO_WRIOTE_LOCK
 
-    def unlock(self, clientId, locktype):
-        if (locktype == LockOperation.WRITELOCK):
+    def unlock(self, clientId):
+        if self.locktype == LockOperation.WRITELOCK:
             return self.unlock_write_lock(clientId)
         else:
             return self.unlock_read_lock(clientId)
+            
 
     def __repr__(self):
         owner = self.writeLocker
@@ -221,18 +222,25 @@ class LockContainer(threading.Thread):
                 logging.debug('Lock ' + lck.lock + ' ' + ' is ' + ' already owned by ' + client) 
                 return StatusMsg.LOCK_ALREADY_TAKEN
             else:
-                if client not in lck.write_waits:
+                if client not in lck.readers:
                     logging.debug('Write lock queued for Lock=' + lck.lock + ' for client ' +\
                             client)
                     lck.add_to_write_waits(client)
-                return StatusMsg.WRITE_LOCK_QUEUED
+                    return StatusMsg.WRITE_LOCK_QUEUED
+                else:
+                    return StatusMsg.READ_LOCK_ALREADY_QUEUED
         if locktype == LockOperation.READLOCK:
             if lck.writeLocker == client:
                 logging.debug('Write lock already by client ' + client + ' for lock ' + lck.lock)
                 return StatusMsg.YOU_WRITELOCKKED
             else:
-                lck.add_to_readers(clientId)
-                return StatusMsg.READ_LOCK_QUEUED
+                if client not in lck.write_waits:
+                    lck.add_to_readers(client)
+                    return StatusMsg.READ_LOCK_QUEUED
+                else:
+                   logging.debug('Already have a write lock request from ' + client + ' on ' +\
+                           lck.lock)
+                   return StatusMsg.WRITE_LOCK_ALREADY_QUEUED
             
     '''
     This method is called when a read lock exists on the requested lock
@@ -244,7 +252,13 @@ class LockContainer(threading.Thread):
                 return StatusMsg.WRITE_LOCK_QUEUED
             else:
                 return StatusMsg.READ_LOCK_ALREADY_TAKEN
-        if locktype == LockOperation.READLOCK:
+        else:
+            if client in lck.write_waits:
+                logging.debug('Client in write waits ' + client + ' for ' + lck.lock)
+                return StatusMsg.WRITE_LOCK_ALREADY_QUEUED 
+            if client == lck.writeLocker:
+                logging.debug('Client ' + client + ' already writelocked ' + lck.lock)
+                return StatusMsg.YOU_WRITELOCKKED
             logging.debug('Enquing client ' + client + ' as readers for lock ' + lck.lock)
             lck.add_to_readers(client)
             return StatusMsg.READ_LOCK_QUEUED
@@ -277,14 +291,21 @@ class LockContainer(threading.Thread):
             self.clientlocks[clientId] =  {}
         self.clientlocks[clientId][lock] = lck
         return StatusMsg.SUCCESS
-
     
-    def unlock(self, clientId, lock, locktype):
+    def unlock(self, clientId, lock):
+        logging.debug('Try unlock of ' + lock + ' by ' + clientId)
         if clientId not in self.clientlocks:
-            return StatusMsg.LOCK_NOT_GRANTED 
+            return StatusMsg.CLIENT_NOT_REGISTERED 
         if lock not in self.clientlocks[clientId]:
             return StatusMsg.LOCK_NOT_GRANTED
-         
+        
+        lck = self.clientlocks[clientId][lock]
+        ret = lck.unlock(clientId)
+        logging.debug('Unlock returned ' + str(ret))
+        del self.clientlocks[clientId][lock]
+        if ret == StatusMsg.LOCK_CAN_BE_REMOVED:
+            del self.alllocks[lock]
+        return StatusMsg.SUCCESS
 
     def expire_client(self, clientId):
         '''

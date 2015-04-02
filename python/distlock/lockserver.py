@@ -41,6 +41,9 @@ class LockServiceHandler:
     def lockOp(self, clientId, lockCmd):
         if not self.clients.is_registered(clientId):
             return StatusMsg.CLIENT_NOT_REGISTERED
+        if lockCmd.op == LockOperation.UNLOCK:
+            logging.debug('Unlock ' + lockCmd.lockId + ' by ' + clientId)
+            return self.lc.unlock(clientId, lockCmd.lockId)
         return self.lc.add_lock(clientId, lockCmd.lockId, lockCmd.op) 
 
     def registerClient(self, clientId):

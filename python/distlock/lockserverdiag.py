@@ -16,6 +16,5 @@ class LockSeverDiag(threading.Thread):
 
     def run(self):
         while self.keep_running:
-            logging.debug("Printing diagnostics")
             self.lc.print_diagnostics()
             time.sleep(60)

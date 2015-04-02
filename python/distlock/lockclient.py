@@ -76,11 +76,12 @@ class LockClient(threading.Thread):
         ret = StatusMsg.FAIL
         self.mutex.acquire()
         try:
-            lck = LockCommand(LockCommand.UNLOCK, lockname)
+            lck = LockCommand(LockOperation.UNLOCK, lockname)
             ret =  self.client.lockOp(clientid, lck)
         except Exception as e:
             logging.error(e)
         self.mutex.release()
+        logging.debug('Try to unlock ' + lockname +  ' by ' + clientid + ' ret=' + str(ret))
         return ret
 
     def sendHeartBeat(self, clientid):
