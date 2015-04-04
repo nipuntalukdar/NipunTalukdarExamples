@@ -1,3 +1,29 @@
+#!/usr/bin/env python
+#
+# Storm Topology gmond module for Ganglia
+#
+# Copyright (C) 2015 by Nipun Talukdar <nipunmlist [at] gmail [dot] com>.
+# All rights reserved.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+#
+import sys
 import re
 import pickle
 import copy
@@ -7,10 +33,6 @@ from time import time
 from thrift import Thrift
 from thrift.transport import TTransport, TSocket
 from thrift.protocol import TBinaryProtocol
-import sys
-sys.path.append('/home/geet/test/python')
-
-from stormpy.storm import Nimbus, ttypes
 
 clusterinfo = None
 topology_found = True
@@ -21,27 +43,27 @@ topology_summary_cols_map = {'status' : 'Status', 'num_workers' : 'Worker Count'
         'num_executors' : 'ExecutorCount', 'uptime_secs': 'Uptime', 'num_tasks' : 'TaskCount'}
 
 spout_stats = {'Executors' : ['Count', '%u', 'uint'], 'Tasks' : ['Count', '%u', 'uint'],
-                'Emitted' : ['Count', '%u', 'uint'], 
-                'Transferred' : ['Count', '%u', 'uint'], 
+                'Emitted' : ['Count', '%f', 'double'], 
+                'Transferred' : ['Count/sec', '%f', 'double'], 
                 'CompleteLatency' : ['ms', '%f' , 'double'],
-                'Acked' : ['Count', '%u', 'uint'],
-                'Failed' : ['Count', '%u', 'uint']}
+                'Acked' : ['Count/Sec', '%f', 'double'],
+                'Failed' : ['Count/sec', '%f', 'double']}
 
 bolt_stats = {'Executors' : ['Count', '%u', 'uint'], 'Tasks' : ['Count', '%u', 'uint'],
-                'Emitted' : ['Count', '%u', 'uint'], 
-                'Executed' : ['Count', '%u', 'uint'], 
-                'Transferred' : ['Count', '%u', 'uint'], 
+                'Emitted' : ['Count/sec', '%f', 'double'], 
+                'Executed' : ['Count/sec', '%f', 'double'], 
+                'Transferred' : ['Count/sec', '%f', 'double'], 
                 'ExecuteLatency' : ['ms', '%f', 'double'],
                 'ProcessLatency' : ['ms', '%f', 'double'],
-                'Acked' : ['Count', '%u', 'uint'],
-                'Failed' : ['Count', '%u', 'uint']}
+                'Acked' : ['Count/sec', '%f', 'double'],
+                'Failed' : ['Count/sec', '%f', 'double']}
 
 diff_cols = [ 'Acked', 'Failed', 'Executed', 'Transferred', 'Emitted' ]
-
 overall = { 'ExecutorCount' : ['Count' , '%u', 'uint'],
             'WorkerCount' : ['Count', '%u', 'uint'],
             'TaskCount' : ['Count', '%u', 'uint'],
             'UptimeSecs' : ['Count', '%u' , 'uint'] }
+
 toplogy_mods = {}
 lastchecktime = 0
 lastinfotime = 0
@@ -140,11 +162,16 @@ def freshen():
 
 def callback_boltspout(name):
     freshen()
-    topology_mod, bolt, statname = name.split('_')
+    first_pos = name.find('_')
+    last_pos = name.rfind('_')
+    topology_mod = name[0:first_pos]
+    bolt = name[first_pos + 1 : last_pos]
+    statname = name[last_pos + 1:]
     topology = toplogy_mods[topology_mod]
     if not all_topology_stats[topology]['topology_stats_got']:
-        return -1
-    logging.debug(topology + ' ' + statname + ' ' + \
+        logging.debug('Returing 0 for ' + name)
+        return 0
+    logging.debug('Got stats for ' + name + \
             str(all_topology_stats[topology]['boltspoutstats'][bolt][statname]))
     return all_topology_stats[topology]['boltspoutstats'][bolt][statname]
 
@@ -153,7 +180,8 @@ def callback_overall(name):
     topology_mod, name = name.split('_')
     topology = toplogy_mods[topology_mod]
     if not all_topology_stats[topology]['topology_stats_got']:
-        return -1
+        logging.debug('Returing 0 for ' + name)
+        return 0
     logging.debug(topology + ' ' + name + ' ' + \
             str(all_topology_stats[topology]['overallstats'][name]))
     return all_topology_stats[topology]['overallstats'][name]
@@ -287,7 +315,6 @@ def refresh_topology_stats():
         framedtrasp.close()
 
     except Exception as e:
-        logging.warn(e.message())
         clusterinfo = None
         logging.warn(e)
 
@@ -302,11 +329,7 @@ def get_topology_stats(toplogyname):
     return all_topology_stats[toplogyname]
 
 def metric_init_topology(params):
-    global descriptors, topology, nimbus_host, nimbus_port
-    if 'nimbus_host' in params:
-        nimbus_host = params['nimbus_host']
-    if 'nimbus_port' in params:
-        nimbus_port = params['nimbus_port']
+    global descriptors
     groupname = ''
     if 'topology' in params and len(params['topology']):
         groupname =  params['topology']
@@ -315,7 +338,7 @@ def metric_init_topology(params):
     topology = groupname
     topology_mod = re.sub("\s+", "", topology)
     topology_mod = re.sub("[_]+", "", topology_mod)
-    toplogy_mods[topology] = topology_mod
+    toplogy_mods[topology_mod] = topology
     if 'spouts' in params:
         spout_array[topology] = re.split('[,]+', params['spouts'])
         for spout in spout_array[topology]:
@@ -357,20 +380,32 @@ def metric_init_topology(params):
     logging.info('Inited metric for '+ groupname)
 
 def metric_init(params):
-    global topologies
+    global topologies, nimbus_host, nimbus_port
+    if 'nimbus_host' in params:
+        nimbus_host = params['nimbus_host']
+    if 'nimbus_port' in params:
+        nimbus_port = params['nimbus_port']
     if 'topologies' not in params:
         return
+    if 'storm_thrift_gen' in params:
+        sys.path.append(params['storm_thrift_gen'])
+    else:
+        sys.path.append('/usr/lib/ganglia')
+
+    global Nimbus, ttypes
+    from stormpy.storm import Nimbus, ttypes
+    
     ts = params['topologies']
     tss = re.split('[,]+', params['topologies'])
     topologies = tss
     alltops = {}
     for t in tss:
         alltops[t] = {'topology' : t}
-        t_mod = re.sub("\s+", "", t)
-        t_bolts = t_mod + '_bolts'
+        alltops[t]['tlen'] = len(t)
+        t_bolts = t + '_bolts'
         if t_bolts in params:
             alltops[t]['bolts'] = params[t_bolts]
-        t_spouts = t_mod + '_spouts'
+        t_spouts = t + '_spouts'
         if t_spouts in params:
             alltops[t]['spouts'] = params[t_spouts]
     for t in alltops:
