@@ -31,12 +31,6 @@ public class SampleBoltA extends BaseRichBolt {
 		String name = String.format("Sample string %d", new Random().nextInt());
 		HashMap<String, Object> hms = (HashMap<String, Object> )input.getValueByField(Consts.SPOUT_FIELD_1);
 		ArrayList<String> ids = new ArrayList<String>();
-		for (String s : hms.keySet()){
-			if (hms.get(s) instanceof Sample)
-				System.out.println(s + (Sample)hms.get(s));
-			else if (hms.get(s) instanceof Sample2)
-				System.out.println(s + (Sample2)hms.get(s));
-		}
 		ids.add(name);
 		ids.add(name);
 		Sample a = new Sample(new Random().nextInt(), name, ids);

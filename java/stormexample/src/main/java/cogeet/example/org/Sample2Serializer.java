@@ -20,7 +20,6 @@ public class Sample2Serializer extends Serializer<Sample2> {
 		for (String id : ids){
 			output.writeString(id);
 		}		
-		System.out.println("Sample2 serialize");
 	}
 
 	@Override
@@ -33,7 +32,6 @@ public class Sample2Serializer extends Serializer<Sample2> {
 		while (i++ < length){
 			a.add(input.readString());
 		}
-		System.out.println("Sample2 deserialize");
 		return new Sample2(val, name, a);
 	}
 }
