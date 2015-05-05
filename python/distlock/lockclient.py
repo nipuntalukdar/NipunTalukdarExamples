@@ -117,6 +117,17 @@ class LockClient(threading.Thread):
         self.mutex.release()
         return clients
 
+    def getClientLocks(self, clientId):
+        clientLocks = None
+        self.mutex.acquire()
+        try:
+            logging.debug('Getting lock details for client ' + clientId)
+            clientLocks = self.client.getClientLocks(clientId)
+        except Exception as e:
+            logging.error(e)
+        self.mutex.release()
+        return clientLocks
+
     def run(self):
         while self.keep_running:
             logging.debug('Sending heartbeat for ' + self.clientid)

@@ -1,0 +1,93 @@
+package lockservice;
+
+message LockOperation {
+    enum EnumValsLockOp {
+        WRITELOCK = 0;
+        READLOCK = 1;
+        WRITELOCKIMMD = 2;
+        READLOCKIMMD = 3;
+        UNLOCK = 4 ;
+    }
+    optional EnumValsLockOp opval = 1;
+}
+
+message StatusMsg {
+    enum StatusMsgVal {
+        SUCCESS = 0;
+        FAIL = 1;
+        REGISTER_CLIENT = 2;
+        HEARTBEAT = 3;
+        YOU_WRITELOCKKED = 4;
+        LOCK_ALREADY_TAKEN = 5;
+        READ_LOCK_ALREADY_TAKEN = 6;
+        READ_LOCK_ALREADY_QUEUED = 7;
+        WRITE_LOCK_ALREADY_QUEUED = 8;
+        CANNOT_LOCK = 9;
+        WRITE_LOCK_QUEUED = 10;
+        READ_LOCK_QUEUED = 11;
+        CLIENT_NOT_REGISTERED = 12;
+        LOCK_NOT_GRANTED  = 13;
+        LOCK_INVALID_OP = 14;
+        LOCK_NOT_OWNER = 15;
+        WRITE_LOCK_OWNER_CHANGED = 16;
+        WRITE_CHANGED_TO_READ_LOCK = 17;
+        READ_CHANDGED_TO_WRIOTE_LOCK = 18;
+        LOCK_CAN_BE_REMOVED = 19;
+        ONE_READ_LOCK_REMOVED = 20;
+        LOCK_NOT_FOUND = 21;
+    }
+    optional StatusMsgVal sv = 1;
+}
+
+message HeartBeat {
+    required string clientId = 1;
+}
+
+message UnRegister {
+    required string clientId = 1;
+}
+
+message LockCommand {
+    required LockOperation op = 1;
+    required string lockId = 2;
+    required int64 expireTime = 3;
+}
+
+message LockCommandClient {
+    required string clientId = 1;
+    required LockCommand cmd = 2; 
+}
+
+message MultiLockCommandClient {
+    required string clientId = 1;
+    repeated LockCommand cmd = 2; 
+}
+
+message LockDetails {
+    required StatusMsg sm = 1;
+    optional string currentWriter = 2;
+    repeated string currentReaders = 3;
+    repeated string currentWriteWaits = 4;
+    optional string lockType = 5;
+    required string lockName = 6;
+}
+
+message ClientLocks {
+    repeated string reads = 1;
+    optional string writeLocker = 3;
+    repeated string writeWaits = 4;
+    required string clientId = 5;
+}
+
+message Exchange {
+    required int64 mid = 1;
+    oneof msg {
+        ClientLocks clocks = 2;
+        LockDetails ld = 3;
+        MultiLockCommandClient mc = 4;
+        LockCommandClient lc = 5;
+        HeartBeat hb = 6;
+        StatusMsg sm = 7;
+        UnRegister ur = 8;
+    }
+}

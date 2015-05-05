@@ -15,6 +15,7 @@ metric_elems = {'rrqm_sec' : 'Number', 'wrqm_sec'  : 'Number', 'read_sec' : 'Num
 
 
 def get_disk_stats():
+    global lastupdate_time
     global diskstats
     diskstats = {}
     output = subprocess.Popen(['iostat' , '-x', '-d', '1' , '-N', '4'] , stdout=subprocess.PIPE ).communicate()[0]

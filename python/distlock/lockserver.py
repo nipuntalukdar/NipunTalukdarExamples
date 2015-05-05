@@ -71,6 +71,13 @@ class LockServiceHandler:
 
     def unRegisterClient(self, clientId):
         return self.clients.unRegisterClient(clientId)
+
+    def getClientLocks(self, clientId):
+        logging.debug('Getting lock info for client ' + clientId)
+        if not self.clients.is_registered(clientId):
+            return None
+        return self.lc.getClientLocks(clientId) 
+
     
     def shutDown(self):
         self.clients.stop()

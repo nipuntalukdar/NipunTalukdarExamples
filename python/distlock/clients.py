@@ -1,19 +1,39 @@
+#!/usr/bin/env python
 import time
+from bidict import bidict
 import threading
 from sets import Set
 import logging
-from lockservice.ttypes import *
+
+clientInst = None
+
+def get_client():
+    return clientInst
 
 class Clients(threading.Thread):
 
     def __init__(self, queue):
+        global clientInst
         threading.Thread.__init__(self)
         self.mutex = threading.Lock()
         self.clients = {}
         self.buckets = {}
         self.keep_running = True
         self.queue = queue
+        self.peers = bidict()
+        self.client_comms = {}
+        clientInst = self
+    
+    def add_client_peer(self, clientId, peer):
+        self.peers[peer] = clientId
+        self.add_client(clientId)
 
+    def send_event(self, event, clientId):
+        pass
+
+    def send_events(self, events, clientId):
+        pass
+        
     def stop(self):
         self.keep_running = False
 

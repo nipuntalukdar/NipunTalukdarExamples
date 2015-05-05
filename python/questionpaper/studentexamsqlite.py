@@ -12,6 +12,7 @@
 import sqlite3
 import string
 import time
+import logging
 
 
 class MyDataBase:

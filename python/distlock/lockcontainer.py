@@ -3,8 +3,11 @@ from time import sleep
 import logging
 import threading
 from collections import deque
-from lockservice import LockService
-from lockservice.ttypes import *
+from lockmessages_pb2 import LockOperation, StatusMsg, LockDetails
+
+lc = None
+def get_lc():
+    return lc
 
 class Lock:
     def __init__(self, lock, clientId, locktype):
@@ -79,7 +82,7 @@ class Lock:
         try:
             self.writeLocker = self.write_waits.popleft()
         except IndexError as e:
-            logging.debug(e.message())
+            logging.debug(e.message)
         if self.writeLocker is not None:
             # Notify the new owner TBD
             self.locktype = LockOperation.WRITELOCK
@@ -172,6 +175,7 @@ class Lock:
 
 class LockContainer(threading.Thread):
     def __init__(self, qexpcl):
+        global lc
         threading.Thread.__init__(self) 
         self.mutex = threading.Lock()
         self.keep_running = True
@@ -179,19 +183,22 @@ class LockContainer(threading.Thread):
         self.clientlocks = {}
         self.expire_client_queue = qexpcl
         logging.info('Lock container initialized')
+        lc = self
     
     def __del__(self):
         pass
     
     def getLockDetails(self, lock):
-        retval = None
+        logging.debug('Trying to get LockDetails for ' + lock)
+        retval = LockDetails()
+        retval.lockName = lock
         self.mutex.acquire()
         if lock in self.alllocks:
             lck = self.alllocks[lock]
-            retval = LockDetails()
-            retval.currentWriter = lck.writeLocker
-            retval.currentReaders = lck.readers
-            retval.currentWriteWaits = lck.write_waits
+            if lck.writeLocker is not None:
+                retval.currentWriter = lck.writeLocker
+            retval.currentReaders.extend(lck.readers)
+            retval.currentWriteWaits.extend(lck.write_waits)
             if lck.locktype == LockOperation.WRITELOCK:
                 retval.lockType = 'WRITE'
             else:
@@ -199,7 +206,9 @@ class LockContainer(threading.Thread):
         self.mutex.release()
         if retval is None:
             logging.debug('Lock details not found' + lock)
+            retval.sm.sv = StatusMsg.FAIL
         else:
+            retval.sm.sv = StatusMsg.SUCCESS
             logging.debug('Lock details ' + str(retval))
         return retval
 
@@ -291,6 +300,41 @@ class LockContainer(threading.Thread):
             self.clientlocks[clientId] =  {}
         self.clientlocks[clientId][lock] = lck
         return StatusMsg.SUCCESS
+   
+    def getClientLocks(self, clientId):
+        ret = None
+        logging.debug('Getting locks for client ' + clientId)
+        self.mutex.acquire()
+        if clientId in self.clientlocks:
+            ret = ClientLocks()
+            for lock in self.clientlocks[clientId]:
+                lck = self.clientlocks[clientId][lock]
+                if lck.writeLocker is not None:
+                    if clientId == lck.writeLocker:
+                        if ret.writes is None:
+                            ret.writes = []
+                        ret.writes.append(lock)
+                    elif clientId in lck.write_waits:
+                        if ret.writeWaits is None:
+                            ret.writeWaits = []
+                        ret.writeWaits.append(lock)
+                    elif clientId in lck.readers:
+                        if ret.reads is None:
+                            ret.reads = []
+                        ret.reads.append(lock)
+                else:
+                    # Readers locked it
+                    if clientId in lck.write_waits:
+                        if ret.writeWaits is None:
+                            ret.writeWaits = []
+                        ret.writeWaits.append(lock)
+                    elif clientId in lck.readers:
+                        if ret.reads is None:
+                            ret.reads = []
+                        ret.reads.append(lock)
+        self.mutex.release()
+        logging.debug('Returned client lock info for client ' + clientId)
+        return ret
     
     def unlock(self, clientId, lock):
         logging.debug('Try unlock of ' + lock + ' by ' + clientId)

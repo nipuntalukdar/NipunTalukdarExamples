@@ -128,6 +128,21 @@ class LockServiceSehell(cmd.Cmd):
         for client in clients:
             print 'Client:', client
 
+    def do_getclientlocks(self, line):
+        '''
+        Prints the list of locks hold by the client . Example below:
+        getclientlocks <client-id>
+        '''
+        clientId = default_client
+        els = re.split('\s+', line) 
+        if len(els) >= 1:
+            clientId = els[0]
+        if clientId == '':
+            clientId = default_client
+        print clientId
+        clientLocks = self.lclient.getClientLocks(clientId)
+        print clientLocks
+
     def emptyline(self):
         pass
 

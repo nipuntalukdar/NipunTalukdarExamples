@@ -8,6 +8,8 @@ exception BadOperation {
 enum LockOperation {
     WRITELOCK,
     READLOCK,
+    WRITELOCKIMMD,
+    READLOCKIMMD,
     UNLOCK
 }
 
@@ -48,6 +50,13 @@ struct LockDetails {
     4: string lockType
 }
 
+struct ClientLocks {
+    1: list<string> reads,
+    2: list<string> readWaits,
+    3: list<string> writes,
+    4: list<string> writeWaits
+}
+
 struct LockCommandBatch {
     1: list<LockCommand> locks
 }
@@ -60,4 +69,5 @@ service LockService {
     LockDetails getLockDetails(1: string lockId)
     list<string> getLiveClients()
     StatusMsg unRegisterClient(1:string clientId)
+    ClientLocks getClientLocks(1:string clientId) 
 }
