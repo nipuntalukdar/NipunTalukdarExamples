@@ -14,12 +14,14 @@ from twisted.internet.protocol import ClientFactory, ReconnectingClientFactory, 
 from lockmessages_pb2 import LockDetails, Exchange, StatusMsg
 from logsettings_client import init_logging
 import utility
+from datachunk import DataChunk
 
 lc = None
 
-class DistLockClientProto(protocol.Protocol):
+class DistLockClientProto(protocol.Protocol, DataChunk):
 
     def __init__(self):
+        DataChunk.__init__(self)
         self.connected = True
         self.reconnect = True
         self.registered = False
@@ -48,19 +50,19 @@ class DistLockClientProto(protocol.Protocol):
         self.sendData(outbuf + out)
         lc.add_server_connection(self.peerhost, self.peerport, self)
 
-    def dataReceived(self, data):
-        datalen = unpack('i', data[0:4])
-        response = data[4:]
+    def handle_msg(self, response):
         ex = Exchange()
         try:
             ex.ParseFromString(response)
         except Exception as e:
+            logging.error(e)
+            logging.error('Diconnecting')
             self.transport.loseConnection()
             return
         if ex.HasField('sm'):
             mid = ex.mid
             sm = ex.sm
-            print 'Response message id ', mid, 'status', sm.sv
+            logging.debug('Response message id ' +  str(mid) +  ' status ' + str(sm.sv))
             if mid == self.register_msg_id and sm == StatusMsg.SUCCESS:
                 self.registered = True
                 lc.add_server_registered(self.peerhost, self.peerport)
@@ -68,6 +70,9 @@ class DistLockClientProto(protocol.Protocol):
            utility.print_lock_details(ex.ld)
         else:
             print 'Other  message'
+
+    def dataReceived(self, data):
+        self.process_chunk(data)
     
     def unregister(self):
         logging.debug('Unregistering ' + self.clientId)
@@ -104,7 +109,7 @@ class DistLockClientProto(protocol.Protocol):
         self.registered = False
         if self.reconnect:
             pass
-        print 'Disconnected '
+        logging.debug('Disconnected')
 
 
 class DistLockClientFactory(ReconnectingClientFactory):
@@ -113,12 +118,12 @@ class DistLockClientFactory(ReconnectingClientFactory):
         self.done = Deferred()
 
     def clientConnectionFailed(self, connector, reason):
-        print 'connection failed:', reason.getErrorMessage()
+        logging.error('connection failed:'+ reason.getErrorMessage())
         self.resetDelay()
         self.retry(connector)
 
     def clientConnectionLost(self, connector, reason):
-        print 'Connection lost, will try reconnection'
+        logging.debug('Connection lost, will try reconnection')
         self.resetDelay()
         self.retry(connector)
 
@@ -145,7 +150,7 @@ class LockClient(threading.Thread):
         try:
             d = self.clientCreator.connectTCP('127.0.0.1', 8000)
         except Exception as e:
-            print e
+            logging.debug(e)
         if d is not None:
             d.addErrback(self.failed)
             d.addCallback(self.passed)
@@ -190,12 +195,12 @@ class LockClient(threading.Thread):
 
     def passed(self, proto):
         if proto is not None:
-            print proto.peerhost, proto.peerport
+            logging.debug('Success ' + proto.peerhost + ':' + str(proto.peerport))
             self.server_connections[(proto.peerhost, proto.peerport)] = proto  
             proto.setClientId(self.clientId)
         
     def failed(self, failure):
-        print 'This is from failed'
+        logging.error('Failure')
         return None
 
     def get_client_locks(self, clId):
@@ -250,8 +255,7 @@ class test_runner(threading.Thread):
 
 def main():
     init_logging()
-    #LockClient(uuid.uuid1().hex, [('localhost', 8000)])
-    LockClient('abcdefgh', [('localhost', 8000)])
+    LockClient(uuid.uuid1().hex, [('localhost', 8000)])
     t = test_runner(lc)
     t.start()
     reactor.run()

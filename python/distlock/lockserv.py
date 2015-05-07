@@ -8,15 +8,10 @@ from distlockcomm import DistLockComm
 from threading import Thread
 from clients import Clients
 from lockcontainer import LockContainer
-
-def init_logging():
-    FORMAT = '%(asctime)s %(levelname)s %(filename)s:%(lineno)d  %(message)s'
-    logging.basicConfig(filename='/tmp/lockserver.log', format=FORMAT, \
-            level = logging.DEBUG)
-    logging.debug("Logging initied")
+from logsettings_client import init_logging
 
 def main():
-    init_logging()
+    init_logging('/tmp/lockserver.log')
     queue = Queue()
     clients = Clients(queue)
     clients.setDaemon(True)

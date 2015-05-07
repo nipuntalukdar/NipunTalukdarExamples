@@ -4,6 +4,7 @@ from bidict import bidict
 import threading
 from sets import Set
 import logging
+import rqrsp impor RequestResponse
 
 clientInst = None
 
@@ -17,6 +18,7 @@ class Clients(threading.Thread):
         threading.Thread.__init__(self)
         self.mutex = threading.Lock()
         self.clients = {}
+        self.clientsdata = {}
         self.buckets = {}
         self.keep_running = True
         self.queue = queue
@@ -52,6 +54,8 @@ class Clients(threading.Thread):
             self.buckets[expirebucket] = Set()
         if clientId not in self.buckets[expirebucket]:
             self.buckets[expirebucket].add(clientId)
+        if clientId not in self.clientsdata:
+           self.clientsdata[clientId] = RequestResponse() 
         self.mutex.release()
     
     def heartbeat(self, clientId):
