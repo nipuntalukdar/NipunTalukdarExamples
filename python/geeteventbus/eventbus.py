@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from atexit import register
 from time import time
 from threading import Lock, Thread, current_thread
 import logging
@@ -18,12 +19,14 @@ MINIMUM_QUEUE_LENGTH = 16
 class eventbus:
     def __init__(self, max_queued_event = 10000, executor_count = DEFAULT_EXECUTOR_COUNT,
             synchronus = False, subscribers_thread_safe = True):
+        register(self.shutdown)
         self.synchronus = synchronus
         self.subscribers_thread_safe = subscribers_thread_safe
         self.topics = MAX_TOPIC_INDEX * [{}]
         self.index_locks = []
         self.consumers = {}
         self.consumers_lock = Lock()
+        self.shutdown_lock = Lock()
         self.subscriber_locks = {}
         self.keep_running = True
         self.stop_time = 0
@@ -42,11 +45,16 @@ class eventbus:
             if executor_count < MIN_EXECUTOR_COUNT or executor_count > MAX_EXECUTOR_COUNT:
                 self.executor_count = DEFAULT_EXECUTOR_COUNT
             self.executors = []
+            self.grouped_events = []
+            self.thread_specific_queue = {}
             i = 0
             while i < self.executor_count:
-                thrd = Thread(target = self)
-                thrd.setDaemon(True)
+                name = 'executor_thread_' + str(i)
+                thrd = Thread(target = self, name = name)
                 self.executors.append(thrd)
+                grouped_events_queue = Queue()
+                self.grouped_events.append(grouped_events_queue)
+                self.thread_specific_queue[name] = grouped_events_queue
                 i += 1
             for thrd in self.executors:
                 thrd.start()
@@ -70,7 +78,13 @@ class eventbus:
         if not self.keep_running:
             return False
         if not self.synchronus:
-            self.event_queue.put(event)
+            ordered = event.get_ordered()
+            if ordered is not None:
+                indx = (abs(crc32(ordered)) & (MAX_EXECUTOR_COUNT - 1)) % self.executor_count
+                queue = self.grouped_events[indx]
+                queue.put(event)
+            else:
+                self.event_queue.put(event)
         else:
             self.post_synchronous(event)
         return True
@@ -125,14 +139,27 @@ class eventbus:
             
     
     def __call__(self):
+        thread_specific_queue = self.thread_specific_queue[current_thread().getName()]
+        fromqueue = None
         while True:
             if self.stop_time > 0:
                 if time() < self.stop_time: break
             event = None
             try:
-                event = self.event_queue.get(timeout = 0.1)
+                if not thread_specific_queue.empty():
+                    event = thread_specific_queue.get()
+                    fromqueue = thread_specific_queue
+                else:
+                    event = self.event_queue.get(timeout = 0.1)
+                    fromqueue = self.event_queue
             except Empty as e:
                 continue
+            except Exception as e:
+                logging.error(e)
+                continue
+            
+            # No harm, signal that the work will be be done
+            fromqueue.task_done()
             topic = event.get_topic()
             subscribers = self.get_subscribers(topic)
             if subscribers is not None:
@@ -154,11 +181,13 @@ class eventbus:
                         logging.error(e)
                     if lock is not None:
                         lock.release()
-            self.event_queue.task_done()
 
 
     def shutdown(self):
-        self.keep_running = False
+        with self.shutdown_lock:
+            if not self.keep_running: 
+                return
+            self.keep_running = False
         self.stop_time = time() + 2
         if not self.synchronus:
             for thrd in self.executors:

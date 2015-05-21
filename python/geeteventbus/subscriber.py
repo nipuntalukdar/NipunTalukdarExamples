@@ -9,7 +9,7 @@ class subscriber:
     def process(self, event):
         if not self.registered:
             return
-        print current_thread(), 'processing', event.get_topic(), event.get_data()
+        print current_thread().getName(), 'processing', event.get_topic(), event.get_data()
 
     def set_registered(self, registered = True):
         self.registered = True
