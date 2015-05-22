@@ -4,6 +4,7 @@ import logging
 import threading
 from collections import deque
 from lockmessages_pb2 import LockOperation, StatusMsg, LockDetails
+from geeteventbus.subscriber import subscriber
 
 lc = None
 def get_lc():
@@ -173,15 +174,17 @@ class Lock:
             ' WriteWaits=' + str(self.write_waits) +\
              ' ' + ' Readers=' + str(self.readers)
 
-class LockContainer(threading.Thread):
-    def __init__(self, qexpcl):
+
+class LockContainer(threading.Thread, subscriber):
+    def __init__(self, ebus):
         global lc
         threading.Thread.__init__(self) 
         self.mutex = threading.Lock()
         self.keep_running = True
         self.alllocks = {}
         self.clientlocks = {}
-        self.expire_client_queue = qexpcl
+        self.ebus = ebus
+        self.ebus.register_consumer(self, 'unreg')
         logging.info('Lock container initialized')
         lc = self
     
@@ -272,12 +275,14 @@ class LockContainer(threading.Thread):
             lck.add_to_readers(client)
             return StatusMsg.READ_LOCK_QUEUED
 
+    
     def check_existing_lock(self, lck, client, locktype):
         if lck.locktype == LockOperation.WRITELOCK:
             return self.check_existing_writelock(lck, client, locktype)
         else:
             return self.check_existing_readlock(lck, client, locktype)
 
+    
     def add_lock(self, clientId, lock, locktype):
         '''
         First check if the lock already exists
@@ -301,6 +306,7 @@ class LockContainer(threading.Thread):
         self.clientlocks[clientId][lock] = lck
         return StatusMsg.SUCCESS
    
+    
     def getClientLocks(self, clientId):
         ret = None
         logging.debug('Getting locks for client ' + clientId)
@@ -370,9 +376,7 @@ class LockContainer(threading.Thread):
     def stop(self):
         self.keep_running = False
 
-    def run(self):
-        while self.keep_running:
-            clientId = self.expire_client_queue.get()
-            logging.debug('Expiring the client ' + clientId)
-            self.expire_client(clientId)
-            self.expire_client_queue.task_done()
+    def process(self, event):
+        clientId = event.get_data()
+        logging.debug('Expiring the client ' + clientId)
+        self.expire_client(clientId)

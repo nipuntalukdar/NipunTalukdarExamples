@@ -9,14 +9,15 @@ from threading import Thread
 from clients import Clients
 from lockcontainer import LockContainer
 from logsettings_client import init_logging
+from geeteventbus.eventbus import eventbus
 
 def main():
     init_logging('/tmp/lockserver.log')
-    queue = Queue()
-    clients = Clients(queue)
+    ebus = eventbus()
+    clients = Clients(ebus)
     clients.setDaemon(True)
     clients.start()
-    lc = LockContainer(queue)
+    lc = LockContainer(ebus)
     lc.setDaemon(True)
     lc.start()
     f = Factory()

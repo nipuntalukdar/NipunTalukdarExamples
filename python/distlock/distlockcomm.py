@@ -13,18 +13,28 @@ from lockmessages_pb2 import LockDetails, Exchange
 from lockcontainer import get_lc
 import utility
 from datachunk import DataChunk
+from geetevent.subscriber import subscriber
 
-class DistLockComm(protocol.Protocol, DataChunk):
-    def __init__(self):
+class DistLockComm(protocol.Protocol, DataChunk, subscriber):
+    def __init__(self, ebus):
         DataChunk.__init__(self)
+        self.ebus = ebus
+        ebus.subs
         self.clientId = None
         self.allclients = get_client()
         self.registered = False
         self.peer = None
 
+    def process(self, event):
+        '''
+        Events are generally will come from the real lock container
+        '''
+        data = event.get_data()
+
     def connectionMade(self):
         self.peer = self.transport.socket.getpeername()
         logging.debug('Connection from ' + str(self.peer))
+
 
     def handle_msg(self, command):
         ex = Exchange()

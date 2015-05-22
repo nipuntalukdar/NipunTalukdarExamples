@@ -4,16 +4,21 @@ from bidict import bidict
 import threading
 from sets import Set
 import logging
-import rqrsp impor RequestResponse
+from rqrsp import RequestResponse
+from geeteventbus.eventbus import eventbus
+from geeteventbus.subscriber import subscriber
+from geeteventbus.event import event 
 
 clientInst = None
+
 
 def get_client():
     return clientInst
 
+
 class Clients(threading.Thread):
 
-    def __init__(self, queue):
+    def __init__(self, ebus):
         global clientInst
         threading.Thread.__init__(self)
         self.mutex = threading.Lock()
@@ -21,7 +26,7 @@ class Clients(threading.Thread):
         self.clientsdata = {}
         self.buckets = {}
         self.keep_running = True
-        self.queue = queue
+        self.ebus = ebus
         self.peers = bidict()
         self.client_comms = {}
         clientInst = self
@@ -84,7 +89,7 @@ class Clients(threading.Thread):
             oldexpirebucket = oldtime + (1023 - (1023 & oldtime)) + 1024
             self.buckets[oldexpirebucket].remove(clientId)
             del self.clients[clientId]
-            self.queue.put(clientId)
+            self.ebus.put(clientId)
         self.mutex.release()
         return ret
     
@@ -100,6 +105,7 @@ class Clients(threading.Thread):
                 for clientId in self.buckets[bucket]:
                     logging.debug('Deleting client ' + clientId)
                     del self.clients[clientId]
-                    self.queue.put(clientId)
+                    event_data = event('unreg', clientId, clientId)
+                    self.ebus.post(event_data)
                 self.buckets[bucket].clear()
                 del self.buckets[bucket]

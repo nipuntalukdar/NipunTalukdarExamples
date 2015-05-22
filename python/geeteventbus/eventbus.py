@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+''' Main module implementing the event bus '''
 
 from atexit import register
 from time import time
@@ -6,6 +6,8 @@ from threading import Lock, Thread, current_thread
 import logging
 from Queue import Queue, Empty
 from zlib import crc32
+from event import event
+from subscriber import subscriber
 
 MAX_TOPIC_INDEX = 16 # Must be power of 2
 DEFAULT_EXECUTOR_COUNT = 8
@@ -59,38 +61,48 @@ class eventbus:
             for thrd in self.executors:
                 thrd.start()
         else:
-            def __post_synchronous(event):
-                topic = event.get_topic()
-                data = event.get_data()
+            def __post_synchronous(eventobj):
+                topic = eventobj.get_topic()
+                data = eventobj.get_data()
                 subscribers = self.get_subscribers(topic)
                 if subscribers is not None:
                     for subscr in subscribers:
                         if not subscr.is_registered():
                             continue
                         try:
-                            subscr.process(event)
+                            subscr.process(eventobj)
                         except Exception as e:
                             logging.error(e)
             self.post_synchronous = __post_synchronous
 
     
-    def post(self, event):
+    def post(self, eventobj):
+        if not isinstance(eventobj, event):
+            logging.error('Invalid data passed. You must pass an event instance')
+            return False
         if not self.keep_running:
             return False
         if not self.synchronus:
-            ordered = event.get_ordered()
+            ordered = eventobj.get_ordered()
             if ordered is not None:
                 indx = (abs(crc32(ordered)) & (MAX_EXECUTOR_COUNT - 1)) % self.executor_count
                 queue = self.grouped_events[indx]
-                queue.put(event)
+                queue.put(eventobj)
             else:
-                self.event_queue.put(event)
+                self.event_queue.put(eventobj)
         else:
-            self.post_synchronous(event)
+            self.post_synchronous(eventobj)
         return True
+
+    
+    def register_consumer_topics(self, consumer, topics):
+        for topic in topics:
+            self.register_consumer(consumer, topic)
 
 
     def register_consumer(self, consumer, topic):
+        if not isinstance(consumer, subscriber):
+            return False
         indexval = crc32(topic) & (MAX_TOPIC_INDEX - 1)
         with self.consumers_lock:
             with self.index_locks[indexval]:
@@ -144,13 +156,13 @@ class eventbus:
         while True:
             if self.stop_time > 0:
                 if time() < self.stop_time: break
-            event = None
+            eventobj = None
             try:
                 if not thread_specific_queue.empty():
-                    event = thread_specific_queue.get()
+                    eventobj = thread_specific_queue.get()
                     fromqueue = thread_specific_queue
                 else:
-                    event = self.event_queue.get(timeout = 0.1)
+                    eventobj = self.event_queue.get(timeout = 0.1)
                     fromqueue = self.event_queue
             except Empty as e:
                 continue
@@ -160,7 +172,7 @@ class eventbus:
             
             # No harm, signal that the work will be be done
             fromqueue.task_done()
-            topic = event.get_topic()
+            topic = eventobj.get_topic()
             subscribers = self.get_subscribers(topic)
             if subscribers is not None:
                 for subscr in subscribers:
@@ -176,7 +188,7 @@ class eventbus:
                     if lock is not None:
                         lock.acquire()
                     try:
-                        subscr.process(event)
+                        subscr.process(eventobj)
                     except Exception as e:
                         logging.error(e)
                     if lock is not None:
