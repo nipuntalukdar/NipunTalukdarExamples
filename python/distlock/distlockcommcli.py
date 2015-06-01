@@ -168,6 +168,7 @@ class LockClient(threading.Thread):
         pass
     
     def get_lock_server(self, lock):
+        print self.server_connections
         for server in self.server_connections:
             return self.server_connections[server]
 
@@ -240,7 +241,7 @@ class test_runner(threading.Thread):
     def run(self):
         print 'Started'
         sleep(1)
-        lc.read_lock('MyLock2')
+        lc.write_lock('MyLock2')
         lc.get_lock_details('MyLock2')
         lc.get_lock_details('MyLock2')
         lc.get_lock_details('MyLock2')

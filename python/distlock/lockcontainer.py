@@ -1,203 +1,77 @@
 #!/usr/bin/python
 from time import sleep
 import logging
-import threading
-from collections import deque
+from threading import Thread, Lock
 from lockmessages_pb2 import LockOperation, StatusMsg, LockDetails
 from geeteventbus.subscriber import subscriber
+from geeteventbus.subscriber import event
+import common
+from utility import get_hash_index, get_Response_msg
+from lockdef import LockDef
+
+MAX_PARTITIONS = 16
+BITWISEAND = 1023
 
 lc = None
 def get_lc():
     return lc
 
-class Lock:
-    def __init__(self, lock, clientId, locktype):
-        self.lock = lock
-        if locktype == LockOperation.WRITELOCK:
-            self.writeLocker = clientId
-            self.readers = []
-        else:
-            self.writeLocker = None
-            self.readers = [clientId]
-        self.write_waits = deque([])
-        self.locktype = locktype
 
-    def add_to_readers(self, clientId):
-        if clientId not in self.readers:
-            self.readers.append(clientId)
-
-    def add_to_write_waits(self, clientId):
-        if clientId != self.writeLocker and clientId not in self.write_waits:
-            self.write_waits.append(clientId)
-
-    def unlock_write_lock(self, clientId):
-        if self.locktype != LockOperation.WRITELOCK:
-            return StatusMsg.LOCK_INVALID_OP
-
-        '''
-        Write lock can only be unlocked by the owner
-        '''
-        if self.writeLocker != clientId:
-            return StatusMsg.LOCK_NOT_OWNER
-        
-        '''
-        if there is a write wait, allocate the lock to it
-        '''
-        self.writeLocker = None
-        try:
-            self.writeLocker = self.write_waits.popleft()
-        except IndexError as e:
-            logging.debug(e)
-        if self.writeLocker is not None:
-            # Notify the new owner TBD
-            return StatusMsg.WRITE_LOCK_OWNER_CHANGED 
-
-        ''' 
-        There was no write waits. Check if there are readwaits
-        '''
-        if len(self.readers) != 0:
-            # Notify the readers
-            self.locktype = LockOperation.READLOCK
-            return StatusMsg.WRITE_CHANGED_TO_READ_LOCK
-        
-        '''
-        Nobody wants this object and hence can be removed
-        '''
-
-        return StatusMsg.LOCK_CAN_BE_REMOVED
-
-
-    def unlock_read_lock(self, clientId):
-        if self.locktype != LockOperation.READLOCK:
-            return StatusMsg.LOCK_INVALID_OP
-
-        self.readers.remove(clientId) 
-        if len(self.readers) != 0:
-            return StatusMsg.ONE_READ_LOCK_REMOVED
-
-        '''
-        if no more readers and 
-        if there is a write wait, allocate the lock to it
-        '''
-        self.writeLocker = None
-        try:
-            self.writeLocker = self.write_waits.popleft()
-        except IndexError as e:
-            logging.debug(e.message)
-        if self.writeLocker is not None:
-            # Notify the new owner TBD
-            self.locktype = LockOperation.WRITELOCK
-            return StatusMsg.WRITE_LOCK_OWNER_CHANGED 
-        
-        '''
-        Nobody wants this lock and hence can be removed
-        '''
-        return StatusMsg.LOCK_CAN_BE_REMOVED
-            
-    '''
-    Realese the lock if the lock is "write" owned by the client. 
-    Remove the client from readers if it is in readers list
-    Remove the client from writewits if it is in write waute list
-    '''
-    def release_lock(self, clientId): 
-        if self.writeLocker == clientId:
-            self.writeLocker = None
-            # If somebody in writewaits, grant him the write lock
-            try:
-                self.writeLocker = self.write_waits.popleft()
-            except IndexError as e:
-                logging.debug("No write waits for " + self.lock)
-
-            if self.writeLocker is not None:
-                # Announce the respected client that he got the lock TBD
-                return StatusMsg.SUCCESS
-
-            if len(self.readers) == 0:
-                return StatusMsg.LOCK_CAN_BE_REMOVED
-            
-            # Announce all the readers that they got lock TBD 
-            self.locktype = LockOperation.READLOCK
-            return StatusMsg.WRITE_CHANGED_TO_READ_LOCK   
-        
-        '''
-        If the client is in write_waits, simply remove it 
-        '''
-        if clientId in self.write_waits:
-            self.write_waits.remove(clientId)
-            return StatusMsg.SUCCESS
-        '''
-        if the client is in readers remove it from readers list
-        '''
-        if clientId in self.readers:
-            self.readers.remove(clientId)
-        
-        '''
-        If a writer is already there just return
-        '''
-        if self.locktype == LockOperation.WRITELOCK:
-            return StatusMsg.SUCCESS
-        
-        '''
-        it is a reader lock, if no more readers and there are some writers, 
-        announce new writer lock
-        '''
-        if len(self.readers) != 0:
-            return StatusMsg.SUCCESS
-
-        '''
-        If no readers and no writers
-        The lock cane be removed
-        '''
-        if len(self.write_waits) == 0:
-            return StatusMsg.LOCK_CAN_BE_REMOVED
-
-        '''
-        No readers, but some writers, allow writelock to one client and announce
-        '''
-        self.writeLocker = self.write_waits.popleft()
-        self.locktype = LockOperation.WRITELOCK
-        # Announce TBD 
-        return StatusMsg.READ_CHANDGED_TO_WRIOTE_LOCK
-
-    def unlock(self, clientId):
-        if self.locktype == LockOperation.WRITELOCK:
-            return self.unlock_write_lock(clientId)
-        else:
-            return self.unlock_read_lock(clientId)
-            
-
-    def __repr__(self):
-        owner = self.writeLocker
-        if owner is None:
-            owner=''
-        return 'LockId=' + self.lock + ' owner=' + owner +\
-            ' WriteWaits=' + str(self.write_waits) +\
-             ' ' + ' Readers=' + str(self.readers)
-
-
-class LockContainer(threading.Thread, subscriber):
+class LockContainer(subscriber):
     def __init__(self, ebus):
         global lc
-        threading.Thread.__init__(self) 
-        self.mutex = threading.Lock()
+        subscriber.__init__(self)
+        self.biglock = Lock()
         self.keep_running = True
         self.alllocks = {}
+        self.partitionlock = {}
         self.clientlocks = {}
         self.ebus = ebus
         self.ebus.register_consumer(self, 'unreg')
         logging.info('Lock container initialized')
+        self.partions = []
+        self.__init__partitions()
         lc = self
     
     def __del__(self):
         pass
+
+    def __init__partitions(self):
+        '''
+        Initialize the partition list for the containers. It is a dummy method for 
+        the time being. TBD
+        '''
+        i = 0
+        while i < MAX_PARTITIONS:
+            self.partions.append(i)
+            self.alllocks[i] = {}
+            self.partitionlock[i] = Lock()
+            i += 1
     
     def getLockDetails(self, lock):
+        '''
+        Returns the details of the lock with the name 'lock'
+        it will return FAIL status message if the lock is not found
+        in this lock container
+        '''
+
         logging.debug('Trying to get LockDetails for ' + lock)
         retval = LockDetails()
         retval.lockName = lock
-        self.mutex.acquire()
-        if lock in self.alllocks:
-            lck = self.alllocks[lock]
+        indx = get_hash_index(lock, MAX_PARTITIONS, BITWISEAND)
+        partlock = None
+        partallocks = None
+        self.biglock.acquire()
+        with self.biglock:
+            if indx  not in self.alllocks:
+                retval.sm.sv = StatusMsg.FAIL
+                return retval
+            partlock = self.partitionlock[indx]
+            partallocks = self.alllocks[indx]
+            partlock.acquire()
+                
+        if lock in partallocks:
+            lck = partallocks[lock]
             if lck.writeLocker is not None:
                 retval.currentWriter = lck.writeLocker
             retval.currentReaders.extend(lck.readers)
@@ -206,7 +80,7 @@ class LockContainer(threading.Thread, subscriber):
                 retval.lockType = 'WRITE'
             else:
                 retval.lockType = 'READ'
-        self.mutex.release()
+        partlock.release()
         if retval is None:
             logging.debug('Lock details not found' + lock)
             retval.sm.sv = StatusMsg.FAIL
@@ -216,19 +90,29 @@ class LockContainer(threading.Thread, subscriber):
         return retval
 
     def print_diagnostics(self):
-        self.mutex.acquire()
-        for lock in self.alllocks:
-            print lock, self.alllocks[lock]
-        for clientId in self.clientlocks:
-            print clientId
-            for lock in self.clientlocks[clientId]:
-                print '\t', lock, self.clientlocks[clientId][lock] 
-        self.mutex.release()
-
-    '''
-    This method is called when a write lock exists on the requested lock
-    '''
+        partitions = []
+        with self.biglock:
+            for part in self.alllocks:
+                partitions.append(part)
+        if not partitions:
+            return
+        
+        for part in partitions:
+            partlock = None
+            with self.biglock:
+                if part not in self.alllocks:
+                    continue
+                partlock = self.partitionlock[part]
+                partlock.acquire()
+            for lock in  self.alllocks[part]:
+                print lock, self.alllocks[lock]
+            
+            partlock.release()
+    
     def check_existing_writelock(self, lck, client, locktype):
+        '''
+        This method is called when a write lock exists on the requested lock
+        '''
         if locktype == LockOperation.WRITELOCK:
             if lck.writeLocker == client:
                 logging.debug('Lock ' + lck.lock + ' ' + ' is ' + ' already owned by ' + client) 
@@ -244,7 +128,7 @@ class LockContainer(threading.Thread, subscriber):
         if locktype == LockOperation.READLOCK:
             if lck.writeLocker == client:
                 logging.debug('Write lock already by client ' + client + ' for lock ' + lck.lock)
-                return StatusMsg.YOU_WRITELOCKKED
+                return StatusMsg.YOU_WRITELOCKED_ALREADY
             else:
                 if client not in lck.write_waits:
                     lck.add_to_readers(client)
@@ -270,7 +154,7 @@ class LockContainer(threading.Thread, subscriber):
                 return StatusMsg.WRITE_LOCK_ALREADY_QUEUED 
             if client == lck.writeLocker:
                 logging.debug('Client ' + client + ' already writelocked ' + lck.lock)
-                return StatusMsg.YOU_WRITELOCKKED
+                return StatusMsg.YOU_WRITELOCKED_ALREADY
             logging.debug('Enquing client ' + client + ' as readers for lock ' + lck.lock)
             lck.add_to_readers(client)
             return StatusMsg.READ_LOCK_QUEUED
@@ -283,34 +167,41 @@ class LockContainer(threading.Thread, subscriber):
             return self.check_existing_readlock(lck, client, locktype)
 
     
-    def add_lock(self, clientId, lock, locktype):
+    def add_lock(self, clientId, lock, locktype, mid):
         '''
         First check if the lock already exists
         '''
-        if lock in self.alllocks:
-            lck = self.alllocks[lock]
-            ret = self.check_existing_lock(lck, clientId, locktype)
-            if ret == StatusMsg.WRITE_LOCK_QUEUED or ret == StatusMsg.READ_LOCK_QUEUED:
-                if clientId not in self.clientlocks:
-                    self.clientlocks[clientId] = {}
-                self.clientlocks[clientId][lock] = lck
-            return ret
-        '''
-        Lock doesn't exist, get the new lock
-        '''
-        logging.debug('Client ' + clientId + ' taking the new lock ' + lock + ' ' + str(locktype))
-        lck = Lock(lock, clientId, locktype)
-        self.alllocks[lock] = lck
-        if clientId not in self.clientlocks:
-            self.clientlocks[clientId] =  {}
-        self.clientlocks[clientId][lock] = lck
-        return StatusMsg.SUCCESS
+        indx = get_hash_index(lock, MAX_PARTITIONS, BITWISEAND)
+        alllocks = self.alllocks[indx]
+        partlock = self.partitionlock[indx]
+        with partlock:
+            if lock in alllocks:
+                lck = alllocks[lock]
+                ret = self.check_existing_lock(lck, clientId, locktype)
+                if ret == StatusMsg.WRITE_LOCK_QUEUED or ret == StatusMsg.READ_LOCK_QUEUED:
+                    if clientId not in self.clientlocks:
+                        self.clientlocks[clientId] = {}
+                    self.clientlocks[clientId][lock] = (lck, mid)
+                return ret
+            '''
+            Lock doesn't exist, get the new lock
+            '''
+            logging.debug('Client ' + clientId + ' taking the new lock ' + lock + ' ' + str(locktype))
+            lck = LockDef(lock, clientId, locktype)
+            alllocks[lock] = lck
+            if clientId not in self.clientlocks:
+                self.clientlocks[clientId] =  {}
+            self.clientlocks[clientId][lock] = (lck , mid)
+            response = get_Response_msg(mid, StatusMsg.LOCK_GRANTED)
+            eobj = event(common.RESPONSE_TOPIC, (clientId, response))
+            self.ebus.post(eobj)
+            return StatusMsg.SUCCESS
    
     
     def getClientLocks(self, clientId):
         ret = None
         logging.debug('Getting locks for client ' + clientId)
-        self.mutex.acquire()
+        self.biglock.acquire()
         if clientId in self.clientlocks:
             ret = ClientLocks()
             for lock in self.clientlocks[clientId]:
@@ -338,7 +229,7 @@ class LockContainer(threading.Thread, subscriber):
                         if ret.reads is None:
                             ret.reads = []
                         ret.reads.append(lock)
-        self.mutex.release()
+        self.biglock.release()
         logging.debug('Returned client lock info for client ' + clientId)
         return ret
     
@@ -361,7 +252,7 @@ class LockContainer(threading.Thread, subscriber):
         '''
         Unlock the locks owned by the client
         '''
-        self.mutex.acquire()
+        self.biglock.acquire()
         if clientId in self.clientlocks:
             clilocks = self.clientlocks[clientId]
             for lock in clilocks:
@@ -371,12 +262,27 @@ class LockContainer(threading.Thread, subscriber):
                     del self.alllocks[lock]
                 logging.debug('Released the lock ' + str(lck))
             del self.clientlocks[clientId]
-        self.mutex.release()
+        self.biglock.release()
 
     def stop(self):
         self.keep_running = False
 
-    def process(self, event):
-        clientId = event.get_data()
-        logging.debug('Expiring the client ' + clientId)
-        self.expire_client(clientId)
+    def process(self, eobj):
+        try:
+            topic = eobj.get_topic()
+            ex = eobj.get_data()
+            lcl = ex.lc
+            mid = ex.mid
+            clientId = lcl.clientId
+            if topic == common.LOCKOP_TOPIC:
+                logging.debug('Received a lock request ')
+                #if lcl.cmd.op.opval == lockmessages_pb2.LockOperation.WRITELOCK:
+                if lcl.cmd.op.opval == 0:
+                    self.add_lock(clientId, lcl.cmd.lockId, lcl.cmd.op.opval, mid)
+            else:
+                clientId = eobj.get_data()
+                logging.debug('Expiring the client ' + clientId)
+                self.expire_client(clientId)
+        except Exception as e:
+            logging.error(e)
+

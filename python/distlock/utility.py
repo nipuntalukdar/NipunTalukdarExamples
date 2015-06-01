@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from struct import pack, unpack
+from zlib import crc32
 from lockmessages_pb2 import Exchange, LockOperation, LockCommandClient, StatusMsg
 
 
@@ -57,6 +58,15 @@ def get_lockOp_msg(msgId, clientId, lockName, op):
     
     return outbuf + out
 
+def get_Response_msg(msgId, status):
+    ex = Exchange()
+    ex.mid = msgId
+    ex.sm.sv = status
+    out = ex.SerializeToString()
+    outlen = len(out)
+    outbuf = pack('i', outlen)
+    
+    return outbuf + out
 
 def get_readLock_msg(msgId, clientId, lockName):
     return get_lockOp_msg(msgId, clientId, lockName, LockOperation.READLOCK)
@@ -105,6 +115,13 @@ def unpack_protocol_msg(data):
         print 'Failure in unpacking data'
         return None
     return ex
+
+
+def get_hash_index(key, max_index, bitwiseand):
+    if max_index <= 0:
+        return 0
+    return abs((crc32(str(key))) & bitwiseand) % max_index
+    
 
 if __name__ == '__main__':
     data = get_unLock_msg(1, 'abcdefgh' , 'MyLock2')

@@ -8,6 +8,7 @@ from rqrsp import RequestResponse
 from geeteventbus.eventbus import eventbus
 from geeteventbus.subscriber import subscriber
 from geeteventbus.event import event 
+import common
 
 clientInst = None
 
@@ -16,13 +17,14 @@ def get_client():
     return clientInst
 
 
-class Clients(threading.Thread):
+class Clients(threading.Thread, subscriber):
 
     def __init__(self, ebus):
         global clientInst
         threading.Thread.__init__(self)
         self.mutex = threading.Lock()
         self.clients = {}
+        self.clientsproto = {}
         self.clientsdata = {}
         self.buckets = {}
         self.keep_running = True
@@ -31,20 +33,36 @@ class Clients(threading.Thread):
         self.client_comms = {}
         clientInst = self
     
+    def process(self, eobj):
+        topic = eobj.get_topic()
+        if topic != common.RESPONSE_TOPIC:
+            logging.error('Invalid message recived')
+        clientId, response = eobj.get_data()
+        proto = None
+        try:
+            proto = self.clientsproto[clientId]
+        except KeyError as e:
+            logging.error(e)
+        if proto is not None:
+            print 'Hey2 '
+            proto.sendData(response)
+
+    
     def add_client_peer(self, clientId, peer):
         self.peers[peer] = clientId
         self.add_client(clientId)
 
-    def send_event(self, event, clientId):
-        pass
+    def send_eobj(self, eobj, clientId):
+        self.ebus.post(eobj)
 
-    def send_events(self, events, clientId):
-        pass
+    def send_eobjs(self, eobjs, clientId):
+        for eobj in eobjs:
+            self.ebus.post(eobj)
         
     def stop(self):
         self.keep_running = False
 
-    def add_client(self, clientId):
+    def add_client(self, clientId, proto = None):
         self.mutex.acquire()
         curtime = int(time.time())
         expirebucket = curtime + (1023 - (1023 & curtime)) + 1024
@@ -60,11 +78,13 @@ class Clients(threading.Thread):
         if clientId not in self.buckets[expirebucket]:
             self.buckets[expirebucket].add(clientId)
         if clientId not in self.clientsdata:
-           self.clientsdata[clientId] = RequestResponse() 
+           self.clientsdata[clientId] = RequestResponse(clientId) 
+        if proto is not None:
+            self.clientsproto[clientId] = proto
         self.mutex.release()
     
     def heartbeat(self, clientId):
-        self.add_client(clientId)
+        self.add_client(clientId)  #Just update clients timestamp
 
     def is_registered(self, clientId):
         return clientId in self.clients
@@ -89,7 +109,8 @@ class Clients(threading.Thread):
             oldexpirebucket = oldtime + (1023 - (1023 & oldtime)) + 1024
             self.buckets[oldexpirebucket].remove(clientId)
             del self.clients[clientId]
-            self.ebus.put(clientId)
+            eobj = event(common.UNREGISTER_TOPIC, clientId, clientId) 
+            self.ebus.post(eobj)
         self.mutex.release()
         return ret
     
@@ -105,7 +126,8 @@ class Clients(threading.Thread):
                 for clientId in self.buckets[bucket]:
                     logging.debug('Deleting client ' + clientId)
                     del self.clients[clientId]
-                    event_data = event('unreg', clientId, clientId)
-                    self.ebus.post(event_data)
+                    del self.clientsproto[clientId]
+                    eobj_data = eobj(common.UNREGISTER_TOPIC, clientId, clientId)
+                    self.ebus.post(eobj_data)
                 self.buckets[bucket].clear()
                 del self.buckets[bucket]

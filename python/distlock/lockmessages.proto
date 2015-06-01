@@ -17,7 +17,7 @@ message StatusMsg {
         FAIL = 1;
         REGISTER_CLIENT = 2;
         HEARTBEAT = 3;
-        YOU_WRITELOCKKED = 4;
+        YOU_WRITELOCKED_ALREADY = 4;
         LOCK_ALREADY_TAKEN = 5;
         READ_LOCK_ALREADY_TAKEN = 6;
         READ_LOCK_ALREADY_QUEUED = 7;
@@ -35,6 +35,7 @@ message StatusMsg {
         LOCK_CAN_BE_REMOVED = 19;
         ONE_READ_LOCK_REMOVED = 20;
         LOCK_NOT_FOUND = 21;
+        LOCK_GRANTED = 22;
     }
     optional StatusMsgVal sv = 1;
 }

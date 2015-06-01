@@ -12,24 +12,26 @@ from lockmessages_pb2 import StatusMsg
 from lockmessages_pb2 import LockDetails, Exchange
 from lockcontainer import get_lc
 import utility
+import common
 from datachunk import DataChunk
-from geetevent.subscriber import subscriber
+from geeteventbus.subscriber import subscriber
+from geeteventbus.event import event
 
 class DistLockComm(protocol.Protocol, DataChunk, subscriber):
     def __init__(self, ebus):
         DataChunk.__init__(self)
+        subscriber.__init__(self)
         self.ebus = ebus
-        ebus.subs
         self.clientId = None
         self.allclients = get_client()
         self.registered = False
         self.peer = None
 
-    def process(self, event):
+    def process(self, eobj):
         '''
         Events are generally will come from the real lock container
         '''
-        data = event.get_data()
+        data = eobj.get_data()
 
     def connectionMade(self):
         self.peer = self.transport.socket.getpeername()
@@ -62,7 +64,7 @@ class DistLockComm(protocol.Protocol, DataChunk, subscriber):
                 print 'Registered ' , self.clientId
                 statusdata = utility.get_StatusMsg_bin(ex.mid, StatusMsg.SUCCESS)
                 self.sendData(statusdata)
-                self.allclients.add_client(self.clientId)
+                self.allclients.add_client(self.clientId, self)
         else:
             if ex.HasField('ur'):
                 print 'Unregistering client ', self.clientId
@@ -93,15 +95,14 @@ class DistLockComm(protocol.Protocol, DataChunk, subscriber):
                 logging.debug('Received lock request ' + ' ' +
                                lcl.clientId + ' ' + lcl.cmd.lockId + ' ' +
                                str(lcl.cmd.op.opval))
-                status = get_lc().add_lock(lcl.clientId, lcl.cmd.lockId, lcl.cmd.op.opval)
-                statusdata = utility.get_StatusMsg_bin(ex.mid, status)
-                self.sendData(statusdata)
+                eobj = event(common.LOCKOP_TOPIC, ex, str(lcl.cmd.lockId))
+                self.ebus.post(eobj)
 
     def dataReceived(self, data):
         self.process_chunk(data)
 
     def sendData(self, data):
-        return self.transport.write(data)
+        self.transport.write(data)
 
     def connectionLost(self, reason):
         print 'Lost connection '
