@@ -182,6 +182,11 @@ class LockContainer(subscriber):
                     if clientId not in self.clientlocks:
                         self.clientlocks[clientId] = {}
                     self.clientlocks[clientId][lock] = (lck, mid)
+                else:
+                    '''We need to send the response now!!!!'''
+                    response = get_Response_msg(mid, ret)
+                    eobj = event(common.RESPONSE_TOPIC, (clientId, response))
+                    self.ebus.post(eobj)
                 return ret
             '''
             Lock doesn't exist, get the new lock
@@ -276,8 +281,8 @@ class LockContainer(subscriber):
             clientId = lcl.clientId
             if topic == common.LOCKOP_TOPIC:
                 logging.debug('Received a lock request ')
-                #if lcl.cmd.op.opval == lockmessages_pb2.LockOperation.WRITELOCK:
-                if lcl.cmd.op.opval == 0:
+                if lcl.cmd.op.opval == LockOperation.WRITELOCK or\
+                        lcl.cmd.op.opval == LockOperation.READLOCK:
                     self.add_lock(clientId, lcl.cmd.lockId, lcl.cmd.op.opval, mid)
             else:
                 clientId = eobj.get_data()

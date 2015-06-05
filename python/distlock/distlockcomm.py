@@ -61,13 +61,12 @@ class DistLockComm(protocol.Protocol, DataChunk, subscriber):
                 self.registered = True
                 hb = ex.hb
                 self.clientId = hb.clientId
-                print 'Registered ' , self.clientId
                 statusdata = utility.get_StatusMsg_bin(ex.mid, StatusMsg.SUCCESS)
                 self.sendData(statusdata)
                 self.allclients.add_client(self.clientId, self)
         else:
             if ex.HasField('ur'):
-                print 'Unregistering client ', self.clientId
+                logging.debug('Unregistering client ' + self.clientId)
                 self.allclients.unRegisterClient(self.clientId)
                 self.transport.loseConnection()
                 return

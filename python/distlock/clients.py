@@ -44,7 +44,6 @@ class Clients(threading.Thread, subscriber):
         except KeyError as e:
             logging.error(e)
         if proto is not None:
-            print 'Hey2 '
             proto.sendData(response)
 
     
