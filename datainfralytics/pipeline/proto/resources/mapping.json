@@ -1,0 +1,16 @@
+{
+	"properties" : {
+		"name" : {
+			"type" : "string",
+			"store" : "true"
+		},
+		
+		"age" : {
+			"type" : "float",
+			"store" : true,
+			"index" : "no"
+		}
+	}
+
+
+}
