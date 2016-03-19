@@ -22,12 +22,13 @@ public class MongoBolt extends BaseRichBolt implements Serializable {
 	private final static long serialVerisonUid = 18282882823335L;
 	private OutputCollector collector;
 	private Logger logger;
+	private static final String DB_NAME = "analytics";
 
 	@Override
 	public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
+		logger = LoggerFactory.getLogger(MongoBolt.class);
 		logger.info("MongoBolt task started");
 		this.collector = collector;
-		logger = LoggerFactory.getLogger(MongoBolt.class);
 		Configs.initConfig(stormConf);
 	}
 
@@ -35,7 +36,7 @@ public class MongoBolt extends BaseRichBolt implements Serializable {
 	public void execute(Tuple input) {
 		collector.ack(input);
 		Person person = (Person) input.getValueByField("person");
-		if (MongoService.getMongoService().updatePerson(person)) {
+		if (MongoService.getMongoService().updatePerson(DB_NAME, person)) {
 			collector.emit(input, new Values(person));
 			logger.debug("Added document to db for person={}", person.getName());
 			collector.ack(input);

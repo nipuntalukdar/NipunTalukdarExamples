@@ -11,13 +11,14 @@ public class Configs {
 
 	private Configs(Map conf) {
 		props = new Properties();
-		for(Object key: conf.keySet()){
-			props.put((String)key, conf.get(key));
+		for (Object key : conf.keySet()) {
+			if (key instanceof String && conf.get(key)!= null)
+				props.put((String) key, conf.get(key));
 		}
 	}
 
 	public static void initConfig(Map conf) {
-		if (configs != null) 
+		if (configs != null)
 			return;
 		synchronized (lock) {
 			if (configs != null)
@@ -25,12 +26,12 @@ public class Configs {
 			configs = new Configs(conf);
 		}
 	}
-	
-	public static Configs getConfigs(){
+
+	public static Configs getConfigs() {
 		return configs;
 	}
-	
-	public String get(String key){
-		return (String)props.get(key);
+
+	public String get(String key) {
+		return (String) props.get(key);
 	}
 }
