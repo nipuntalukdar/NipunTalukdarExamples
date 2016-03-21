@@ -38,7 +38,7 @@ public class MongoBolt extends BaseRichBolt implements Serializable {
 		Person person = (Person) input.getValueByField("person");
 		if (MongoService.getMongoService().updatePerson(DB_NAME, person)) {
 			collector.emit(input, new Values(person));
-			logger.debug("Added document to db for person={}", person.getName());
+			logger.info("Added document to db for person={}", person.getName());
 			collector.ack(input);
 		} else {
 			logger.error("Failing message for id={}", person.getId());

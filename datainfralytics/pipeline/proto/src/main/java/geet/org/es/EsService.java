@@ -1,6 +1,5 @@
 package geet.org.es;
 
-
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import geet.org.data.Configs;
 import geet.org.data.Person;
@@ -61,8 +60,12 @@ public class EsService {
 			String esCluster = cfgs.get("es.cluster");
 			int esPort = Integer.parseInt(cfgs.get("es.port"));
 			Settings settings = Settings.settingsBuilder().put("cluster.name", esCluster).build();
-			client = TransportClient.builder().settings(settings).build().addTransportAddress(
-					new InetSocketTransportAddress(InetAddress.getByName(esHost), esPort));
+			client = TransportClient
+					.builder()
+					.settings(settings)
+					.build()
+					.addTransportAddress(
+							new InetSocketTransportAddress(InetAddress.getByName(esHost), esPort));
 		} catch (UnknownHostException e) {
 			throw e;
 		}
@@ -71,10 +74,12 @@ public class EsService {
 	public boolean indexDocument(Person person, String index, String itype) {
 		try {
 			TimeValue timeout = new TimeValue(2000);
-			IndexResponse response = client.prepareIndex(index, itype, person.getId())
-					.setSource(jsonBuilder().startObject().field("name", person.getName())
-							.field("age", person.getAge()).endObject())
-					.setTimeout(timeout).get();
+			IndexResponse response = client
+					.prepareIndex(index, itype, person.getId())
+					.setSource(
+							jsonBuilder().startObject().field("name", person.getName())
+									.field("age", person.getAge()).endObject()).setTimeout(timeout)
+					.get();
 			return true;
 		} catch (IndexNotFoundException e) {
 			int retry = 0;
@@ -107,9 +112,9 @@ public class EsService {
 		ActionFuture<CreateIndexResponse> response = client.admin().indices().create(request);
 		try {
 			if (response.get().isAcknowledged()) {
-				System.out.println("Created index successfully");
+				logger.info("Created successfully index: {}", index);
 			} else {
-				System.out.println("Failed to create index");
+				logger.info("Failed to create index: {}", index);
 				return false;
 			}
 		} catch (InterruptedException | ExecutionException e) {

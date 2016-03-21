@@ -6,12 +6,12 @@ import java.util.Properties;
 import java.util.Set;
 
 import backtype.storm.Config;
+import backtype.storm.LocalCluster;
 import backtype.storm.StormSubmitter;
 import backtype.storm.generated.AlreadyAliveException;
 import backtype.storm.generated.InvalidTopologyException;
 import backtype.storm.topology.TopologyBuilder;
 import backtype.storm.tuple.Fields;
-
 import geet.org.dbbolt.MongoBolt;
 import geet.org.indexbolt.EsBolt;
 import geet.org.spout.DataSpout;
@@ -52,7 +52,6 @@ public class StartTopology {
 			e.printStackTrace();
 			System.exit(1);
 		}
-
 		try {
 			StormSubmitter.submitTopology(TOPOLOGY, conf, tbuilder.createTopology());
 		} catch (AlreadyAliveException | InvalidTopologyException e) {

@@ -47,6 +47,7 @@ public class KafkaConsmer implements Runnable {
 		props.put("zookeeper.sync.time.ms", "200");
 		props.put("auto.commit.interval.ms", String.valueOf(this.autoCommitInterval));
 		props.put("consumer.timeout.ms", "1000");
+		props.put("auto.offset.reset", "smallest");
 
 		cConfig = new ConsumerConfig(props);
 		cConsumerConnector = Consumer.createJavaConsumerConnector(cConfig);

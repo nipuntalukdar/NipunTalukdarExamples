@@ -8,9 +8,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.mongodb.BasicDBObject;
 import com.mongodb.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.UpdateOptions;
 
 public class MongoService {
 
@@ -41,8 +43,11 @@ public class MongoService {
 		MongoDatabase mdb = mcl.getDatabase(db);
 		MongoCollection<Document> col = mdb.getCollection("person");
 		try {
-			col.insertOne(new Document("name", person.getName()).append("age", person.getAge())
-					.append("_id", person.getId()));
+			BasicDBObject filter = new BasicDBObject("_id", person.getId());
+			Document update = new Document("_id", person.getId()).append("age",
+					person.getAge()).append("name", person.getName());
+			UpdateOptions updateOptions = new UpdateOptions().upsert(true);
+			col.replaceOne(filter, update, updateOptions);
 		} catch (Exception e) {
 			logger.error("Error {}", e);
 			return false;
