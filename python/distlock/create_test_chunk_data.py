@@ -7,7 +7,7 @@ from io import BytesIO
 x = open('out.dump', 'wb')
 i = 0
 random.seed(10000)
-while i < 10000:
+while i < 100:
     i += 1
     cur = random.randint(1, 10000)
     buf = pack('i', cur)
