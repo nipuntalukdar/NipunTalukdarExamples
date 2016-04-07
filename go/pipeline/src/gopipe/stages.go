@@ -79,7 +79,6 @@ func init() {
 }
 
 func CreateExecutionTree(stageInfo *StageInfo, input_chan chan map[string]interface{}) {
-	fmt.Printf("Execution tree creation called\n")
 	if stageInfo == nil {
 		return
 	}
@@ -88,9 +87,8 @@ func CreateExecutionTree(stageInfo *StageInfo, input_chan chan map[string]interf
 	for num_tasks := stageInfo.num_tasks; num_tasks > 0; num_tasks-- {
 		ex_caller := new(ExecutorCaller)
 		exc := exreg.GetInstance(stageInfo.executor_class)
-		ex_caller.exc = *exc
+		ex_caller.exc = exc
 		ex_caller.input_chan = input_chan
-		fmt.Printf("The input is %v\n", *exc)
 		callers = append(callers, ex_caller)
 		if len(stageInfo.output_statges) == 0 {
 			continue
@@ -109,9 +107,7 @@ func taskRunner(caller *ExecutorCaller) {
 	if caller.col != nil {
 		fmt.Printf("Collector %v\n", caller.col)
 	}
-	fmt.Printf("Reding from %v\n", caller.input_chan)
 	for {
-		fmt.Printf("Executed by %v\n", caller)
 		data := <-caller.input_chan
 		caller.exc.Execute(data)
 	}

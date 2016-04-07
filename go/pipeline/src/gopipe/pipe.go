@@ -1,7 +1,6 @@
 package gopipe
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -25,7 +24,6 @@ func NewTupleCollector(stage string) *TupleCollector {
 
 func (tc *TupleCollector) Emit(tuple map[string]interface{}) {
 	for _, chn := range tc.out_chans {
-		fmt.Printf("Emitting to %v\n", chn)
 		chn <- tuple
 	}
 }

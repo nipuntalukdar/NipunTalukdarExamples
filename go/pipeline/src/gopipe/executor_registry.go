@@ -12,27 +12,24 @@ type ExecutorRegistry struct {
 }
 
 func (reg *ExecutorRegistry) AddType(name string, executor Executor) {
-	reg.registry[name] = executor
+	type_ex := reflect.TypeOf(executor).Elem()
+	reg.registry[name] = reflect.New(type_ex.(reflect.Type)).Interface().(Executor)
 }
 
 func GetRegistry() *ExecutorRegistry {
 	return exreg
 }
 
-func (reg *ExecutorRegistry) GetInstance(name string) *Executor {
+func (reg *ExecutorRegistry) GetInstance(name string) Executor {
 	class, found := reg.registry[name]
 	if !found {
 		return nil
 	}
+	x := reflect.TypeOf(class).Elem()
+	y := reflect.New(x.(reflect.Type))
+	z := y.Interface().(Executor)
 
-	class_type := reflect.TypeOf(class)
-	fmt.Printf("%v\n", class_type)
-	instance := reflect.New(class_type)
-	fmt.Printf("%v\n", instance)
-	instance2 := instance.Elem()
-	executor_instance := instance2.Interface().(Executor)
-
-	return &executor_instance
+	return z
 }
 
 func init() {
