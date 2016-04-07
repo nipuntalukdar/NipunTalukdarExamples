@@ -1,7 +1,7 @@
 package gopipe
 
 import (
-	"fmt"
+	"time"
 )
 
 type Stage struct {
@@ -73,9 +73,11 @@ type ExecutorCaller struct {
 }
 
 var callers []*ExecutorCaller
+var i int
 
 func init() {
 	callers = []*ExecutorCaller{}
+	i = 0
 }
 
 func CreateExecutionTree(stageInfo *StageInfo, input_chan chan map[string]interface{}) {
@@ -103,10 +105,8 @@ func CreateExecutionTree(stageInfo *StageInfo, input_chan chan map[string]interf
 	}
 }
 
-func taskRunner(caller *ExecutorCaller) {
-	if caller.col != nil {
-		fmt.Printf("Collector %v\n", caller.col)
-	}
+func taskRunner(caller *ExecutorCaller, i int) {
+	caller.exc.AddIdentity(i)
 	for {
 		data := <-caller.input_chan
 		caller.exc.Execute(data)
@@ -114,7 +114,10 @@ func taskRunner(caller *ExecutorCaller) {
 }
 
 func Run() {
+	i := 1
 	for _, caller := range callers {
-		go taskRunner(caller)
+		go taskRunner(caller, i)
+		i++
+		time.Sleep(1 * time.Millisecond)
 	}
 }
