@@ -233,8 +233,7 @@ func (exh *expiryHeap) popIfLess(t int64) (*expiryValue, bool) {
 		return nil, false
 	}
 	exh.lock.Lock()
-	l := len(exh.expvals)
-	x := exh.expvals[l-1]
+	x := exh.expvals[0]
 	exh.lock.Unlock()
 	if x.timestamp <= t {
 		return heap.Pop(exh).(*expiryValue), true
