@@ -67,10 +67,11 @@ func main() {
 	log.Formatter = &logrus.TextFormatter{DisableColors: true,
 		TimestampFormat: "2006-01-02T15:04:05"}
 	log.Level = logrus.DebugLevel
-	mywriter := NewMyIoWriter("test.txt")
+	//mywriter := NewMyIoWriter("test.txt")
+	mywriter := os.Stdout
 	log.Out = mywriter
 	for {
-		log.Debug("Hello world, you are so beautiful")
+		log.Debugf("Hello world, you are so beautiful %s", "yes")
 		time.Sleep(250 * time.Millisecond)
 	}
 }

@@ -11,7 +11,7 @@ type Executor1 struct {
 }
 
 func (ex *Executor1) Execute(input map[string]interface{}) {
-	Log(fmt.Sprintf("Executor1:%d emitting %v\n", ex.identity, input))
+	LOG.Infof("Executor1:%d emitting %v", ex.identity, input)
 	input["data"] = "hello from one"
 	ex.col.Emit(input)
 }
@@ -30,7 +30,7 @@ type Executor2 struct {
 }
 
 func (ex *Executor2) Execute(input map[string]interface{}) {
-	Log(fmt.Sprintf("Executor2:%d working on %v\n", ex.identity, input))
+	LOG.Infof("Executor2:%d working on %v", ex.identity, input)
 	mp := make(map[string]interface{})
 	mp["data"] = input["data"].(string) + " two"
 	ex.col.Emit(mp)
@@ -50,7 +50,7 @@ type Executor3 struct {
 }
 
 func (ex *Executor3) Execute(input map[string]interface{}) {
-	Log(fmt.Sprintf("Executor3:%d working on %v\n", ex.identity, input))
+	LOG.Infof("Executor3:%d working on %v", ex.identity, input)
 	mp := make(map[string]interface{})
 	mp["data"] = input["data"].(string) + " three"
 	ex.col.Emit(mp)
@@ -70,7 +70,7 @@ type Executor4 struct {
 }
 
 func (ex *Executor4) Execute(input map[string]interface{}) {
-	Log(fmt.Sprintf("Executor4:%d working on %v\n", ex.identity, input))
+	LOG.Infof("Executor4:%d working on %v", ex.identity, input)
 }
 
 func (ex *Executor4) AddCollector(col Collector) {
