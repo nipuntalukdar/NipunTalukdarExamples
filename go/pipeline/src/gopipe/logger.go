@@ -53,7 +53,6 @@ func (logger *Logger) RollOver() {
 		os.Exit(1)
 		return
 	}
-	fmt.Printf("Files  %v\n", files)
 
 	var index_nums []int
 	num_name := make(map[int]string)
@@ -78,11 +77,10 @@ func (logger *Logger) RollOver() {
 		index_nums = index_nums[:len(index_nums)-i]
 	}
 	i = len(index_nums)
-	fmt.Printf(".... %v %v\n", index_nums, num_name)
 	for i > 0 {
 		err = os.Rename(num_name[index_nums[i-1]], fmt.Sprintf("%s.%d", logger.outfile, i+1))
 		if err != nil {
-			fmt.Printf("xxxError in renaming file %v\n", err)
+			fmt.Printf("Error in renaming file %v\n", err)
 		}
 		i--
 	}
@@ -91,18 +89,32 @@ func (logger *Logger) RollOver() {
 	if err != nil {
 		fmt.Printf("Error in renaming file %v\n", err)
 	}
-	file := openAndLockFile(logger.outfile)
-	fsize := GetFileSize(logger.outfile)
-	if fsize < 0 {
-		fmt.Printf("Unable to get file size\n")
-		os.Exit(1)
-	}
+	file, fsize := openAndLockFile(logger.outfile)
 	logger.fsize = int(fsize)
 	logger.file = file
 }
 
-func openAndLockFile(outfile string) *os.File {
-	file, err := os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+func openAndLockFile(outfile string) (*os.File, int64) {
+	file, err := os.Open(outfile)
+	var fsize int64
+	if err != nil {
+		if os.IsNotExist(err) {
+			fsize = 0
+		} else {
+			fmt.Printf("Failed to open file:%v, err:%v\n", file, err)
+			os.Exit(1)
+		}
+	} else {
+		fsize = GetFileSizeFile(file)
+		file.Close()
+	}
+	if fsize < 0 {
+		file.Close()
+		fmt.Printf("Problem in getting file size\n")
+		os.Exit(1)
+	}
+	file.Close()
+	file, err = os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		fmt.Printf("Failed to open file:%s, err:%v\n", file, err)
 		os.Exit(1)
@@ -114,7 +126,7 @@ func openAndLockFile(outfile string) *os.File {
 		os.Exit(1)
 	}
 
-	return file
+	return file, fsize
 }
 
 var LOG *logrus.Logger
@@ -122,18 +134,13 @@ var LOG *logrus.Logger
 func NewLogger() *Logger {
 	outfile := "a.log"
 	max_back_up := 10
-	max_log_size := 256
+	max_log_size := 1024 * 1024
 	events := make(chan []byte, 40960)
 	outdir := filepath.Dir(outfile)
 	buf := make([]byte, MAX_LOG_BUFFER)
 	buffer := bytes.NewBuffer(buf)
 	buffer.Reset()
-	file := openAndLockFile(outfile)
-	fsize := GetFileSize(outfile)
-	if fsize < 0 {
-		fmt.Printf("Unable to get file size\n")
-		os.Exit(1)
-	}
+	file, fsize := openAndLockFile(outfile)
 	regexp := outfile + ".*"
 	writer := NewLogWriter(events)
 	logrloger := logrus.New()
@@ -146,22 +153,17 @@ func NewLogger() *Logger {
 		outdir, regexp, writer, logrloger, max_log_size, int(fsize)}
 }
 
-var num int
-
 func (logger *Logger) addMsg(msg []byte) {
 	logger.buffer.Write(msg)
 	if logger.buffer.Len() >= WRITE_SIZE {
-		n, err := logger.file.Write(msg)
+		n, err := logger.file.Write(logger.buffer.Bytes())
 		if err != nil {
 			fmt.Printf("Logging error\n")
 			os.Exit(1)
 		}
-		logger.fsize += logger.buffer.Len()
-		logger.buffer.Reset()
 		logger.fsize += n
+		logger.buffer.Reset()
 		if logger.fsize > logger.rolsize {
-			fmt.Printf("Added %d %d %d\n", num, logger.fsize, logger.rolsize)
-			num++
 			logger.RollOver()
 		}
 	}
@@ -175,7 +177,6 @@ func logSyncer(logger *Logger) {
 }
 
 func init() {
-	num = 0
 	logger := NewLogger()
 	go logSyncer(logger)
 }
