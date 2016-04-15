@@ -3,6 +3,7 @@ package gopipe
 import (
 	"fmt"
 	"testing"
+	"time"
 )
 
 type Executor1 struct {
@@ -79,6 +80,16 @@ func (ex *Executor4) AddCollector(col Collector) {
 
 func (ex *Executor4) AddIdentity(identity int) {
 	ex.identity = identity
+}
+
+type DemoDispatcher struct {
+	tr  *tracker
+	col *Collector
+}
+
+func (dispatcher *DemoDispatcher) LookForWork {
+	time.Sleep(1)
+    	
 }
 
 func TestExecutionTree(t *testing.T) {
