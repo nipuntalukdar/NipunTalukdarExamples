@@ -28,7 +28,7 @@ type UUID struct {
 	msb uint64
 }
 
-func NewUUID(inp []bytes) *UUID {
+func NewUUID(inp []byte) *UUID {
 	if len(inp) != 16 {
 		panic("Length of input array for UUID must be 16")
 	}
@@ -36,10 +36,10 @@ func NewUUID(inp []bytes) *UUID {
 	var lsb uint64 = 0
 	i := 0
 	for ; i < 8; i++ {
-		msb = (msb << 8) | (data[i] & 0xff)
+		msb = (msb << 8) | uint64(inp[i]&0xff)
 	}
 	for ; i < 16; i++ {
-		lsb = (lsb << 8) | (data[i] & 0xff)
+		lsb = (lsb << 8) | uint64(inp[i]&0xff)
 	}
 
 	return &UUID{lsb, msb}
@@ -47,7 +47,7 @@ func NewUUID(inp []bytes) *UUID {
 
 func NewRandomUUID() *UUID {
 	b := make([]byte, 16)
-	n, err := rand.Read(b)
+	_, err := rand.Read(b)
 	if err != nil {
 		return nil
 	}

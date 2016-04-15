@@ -83,13 +83,12 @@ func (ex *Executor4) AddIdentity(identity int) {
 }
 
 type DemoDispatcher struct {
-	tr  *tracker
+	tr  *Tracker
 	col *Collector
 }
 
-func (dispatcher *DemoDispatcher) LookForWork {
+func (dispatcher *DemoDispatcher) LookForWork() {
 	time.Sleep(1)
-    	
 }
 
 func TestExecutionTree(t *testing.T) {
