@@ -41,10 +41,7 @@ type LocalAcker struct {
 }
 
 func NewAckValue(id uint64, value uint64) *ackvalue {
-	val := new(ackvalue)
-	val.id = id
-	val.val = value
-	return val
+	return &ackvalue{id, value}
 }
 
 func NewLocalAcker(parallel uint, tracker Tracker, timeout int64) *LocalAcker {

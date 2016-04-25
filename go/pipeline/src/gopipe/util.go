@@ -2,6 +2,7 @@ package gopipe
 
 import (
 	"crypto/rand"
+	"fmt"
 	"os"
 	"syscall"
 )
@@ -52,4 +53,25 @@ func NewRandomUUID() *UUID {
 		return nil
 	}
 	return NewUUID(b)
+}
+
+func NewRandomUUIDStr() string {
+	uuid := NewRandomUUID()
+	return fmt.Sprintf("%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x",
+		(uuid.msb>>56)&255,
+		(uuid.msb>>48)&255,
+		(uuid.msb>>40)&255,
+		(uuid.msb>>32)&255,
+		(uuid.msb>>24)&255,
+		(uuid.msb>>16)&255,
+		(uuid.msb>>8)&255,
+		uuid.msb&255,
+		(uuid.lsb>>56)&255,
+		(uuid.lsb>>48)&255,
+		(uuid.lsb>>40)&255,
+		(uuid.lsb>>32)&255,
+		(uuid.lsb>>24)&255,
+		(uuid.lsb>>16)&255,
+		(uuid.lsb>>8)&255,
+		uuid.lsb&255)
 }

@@ -65,10 +65,16 @@ func (npl *GraphNodePool) DetectAnyCycle() bool {
 
 func (thisnode *GraphNode) DetectAnyCycle(found_in_path map[*GraphNode]bool,
 	already_checked map[*GraphNode]bool) bool {
-	_, ok := found_in_path[thisnode]
-	already_checked[thisnode] = true
+	_, ok := already_checked[thisnode]
 	if ok {
-		fmt.Printf("Detected a cycle at node %v\n", thisnode.Name)
+		return false
+	}
+	_, ok = found_in_path[thisnode]
+	if ok {
+		for node, _ := range found_in_path {
+			fmt.Printf(" %v ", node.Name)
+		}
+		fmt.Printf("\nDetected a cycle at node %v\n", thisnode.Name)
 		return true
 	}
 	found_in_path[thisnode] = true

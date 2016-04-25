@@ -82,24 +82,51 @@ func (ex *Executor4) AddIdentity(identity int) {
 	ex.identity = identity
 }
 
-type DemoDispatcher struct {
+type DispatcherEx struct {
 	tr  *Tracker
-	col *Collector
+	col Collector
 }
 
-func (dispatcher *DemoDispatcher) LookForWork() {
-	time.Sleep(1)
+func (disp *DispatcherEx) LookForWork() {
+	mp := make(map[string]interface{})
+	mp[NewRandomUUIDStr()] = NewRandomUUIDStr()
+	LOG.Infof("Looking for work")
+	disp.col.Emit(mp)
+}
+
+func (disp *DispatcherEx) Fail(id string) {
+	fmt.Printf("Failed msg id %s", id)
+}
+
+func (disp *DispatcherEx) Ack(id string) {
+	fmt.Printf("Processed msg id %s", id)
+}
+
+func (disp *DispatcherEx) TimedOut(id string) {
+	fmt.Printf("Timing out %s\n", id)
+}
+
+func (disp *DispatcherEx) Prepare(col Collector, tr *Tracker) {
+	disp.tr = tr
+	disp.col = col
+}
+
+func (disp *DispatcherEx) Shutdown() {
+	fmt.Println("Shutting down \n")
 }
 
 func TestExecutionTree(t *testing.T) {
 
 	fmt.Printf("Starting tree.... \n")
 	exreg := GetRegistry()
+	dispreg := GetDispRegistry()
+	dispreg.AddType("dispatcher1", new(DispatcherEx))
 	exreg.AddType("executor1", new(Executor1))
 	exreg.AddType("executor2", new(Executor2))
 	exreg.AddType("executor3", new(Executor3))
 	exreg.AddType("executor4", new(Executor4))
 
+	dispstgInfo_one := NewDispatcherStageInfo(10, "dispatcher1", "disp1")
 	stageInfo_one := NewStageInfo(10, "executor1", "first")
 	stageInfo_two := NewStageInfo(10, "executor2", "second")
 	stageInfo_three := NewStageInfo(10, "executor3", "third")
@@ -109,19 +136,11 @@ func TestExecutionTree(t *testing.T) {
 	stageInfo_two.AddStage(stageInfo_three, false)
 	stageInfo_two.AddStage(stageInfo_four, false)
 	stageInfo_three.AddStage(stageInfo_four, false)
+	dispstgInfo_one.AddOutStage(stageInfo_one)
 
 	All.Print()
 	CreateExecutionTree()
 	Run()
 	t.Logf("Started ...")
-	ch := All.GetChan("first")
-	mp := make(map[string]interface{})
-	i := 1
-	mp["data"] = i
-	for i < 1000000 {
-		i++
-		mp = make(map[string]interface{})
-		mp["data"] = i
-		ch <- mp
-	}
+	time.Sleep(1000000 * time.Second)
 }
