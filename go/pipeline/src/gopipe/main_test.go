@@ -8,77 +8,81 @@ import (
 
 type Executor1 struct {
 	col      Collector
-	identity int
+	identity uint
 }
 
-func (ex *Executor1) Execute(input map[string]interface{}) {
+func (ex *Executor1) Execute(input map[string]interface{}, context interface{}) {
 	LOG.Infof("Executor1:%d emitting %v", ex.identity, input)
 	input["data"] = "hello from one"
-	ex.col.Emit(input)
+	ex.col.Emit(input, context)
+	ex.col.Ack(context)
 }
 
 func (ex *Executor1) AddCollector(col Collector) {
 	ex.col = col
 }
 
-func (ex *Executor1) AddIdentity(identity int) {
+func (ex *Executor1) AddIdentity(identity uint) {
 	ex.identity = identity
 }
 
 type Executor2 struct {
 	col      Collector
-	identity int
+	identity uint
 }
 
-func (ex *Executor2) Execute(input map[string]interface{}) {
+func (ex *Executor2) Execute(input map[string]interface{}, context interface{}) {
 	LOG.Infof("Executor2:%d working on %v", ex.identity, input)
 	mp := make(map[string]interface{})
 	mp["data"] = input["data"].(string) + " two"
-	ex.col.Emit(mp)
+	ex.col.Emit(mp, context)
+	ex.col.Ack(context)
 }
 
 func (ex *Executor2) AddCollector(col Collector) {
 	ex.col = col
 }
 
-func (ex *Executor2) AddIdentity(identity int) {
+func (ex *Executor2) AddIdentity(identity uint) {
 	ex.identity = identity
 }
 
 type Executor3 struct {
 	col      Collector
-	identity int
+	identity uint
 }
 
-func (ex *Executor3) Execute(input map[string]interface{}) {
+func (ex *Executor3) Execute(input map[string]interface{}, context interface{}) {
 	LOG.Infof("Executor3:%d working on %v", ex.identity, input)
 	mp := make(map[string]interface{})
 	mp["data"] = input["data"].(string) + " three"
-	ex.col.Emit(mp)
+	ex.col.Emit(mp, context)
+	ex.col.Ack(context)
 }
 
 func (ex *Executor3) AddCollector(col Collector) {
 	ex.col = col
 }
 
-func (ex *Executor3) AddIdentity(identity int) {
+func (ex *Executor3) AddIdentity(identity uint) {
 	ex.identity = identity
 }
 
 type Executor4 struct {
 	col      Collector
-	identity int
+	identity uint
 }
 
-func (ex *Executor4) Execute(input map[string]interface{}) {
+func (ex *Executor4) Execute(input map[string]interface{}, context interface{}) {
 	LOG.Infof("Executor4:%d working on %v", ex.identity, input)
+	ex.col.Ack(context)
 }
 
 func (ex *Executor4) AddCollector(col Collector) {
 	ex.col = col
 }
 
-func (ex *Executor4) AddIdentity(identity int) {
+func (ex *Executor4) AddIdentity(identity uint) {
 	ex.identity = identity
 }
 
@@ -91,7 +95,7 @@ func (disp *DispatcherEx) LookForWork() {
 	mp := make(map[string]interface{})
 	mp[NewRandomUUIDStr()] = NewRandomUUIDStr()
 	LOG.Infof("Looking for work")
-	disp.col.Emit(mp)
+	disp.col.Emit(mp, NewRandomUUIDStr())
 }
 
 func (disp *DispatcherEx) Fail(id string) {

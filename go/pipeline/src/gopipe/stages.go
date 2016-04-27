@@ -20,10 +20,15 @@ type DispatcherStageInfo struct {
 	name             string
 }
 
+type OutPut struct {
+	data    map[string]interface{}
+	context interface{}
+}
+
 type AllStages struct {
 	dispstages map[string]*DispatcherStageInfo
 	stages     map[string]*StageInfo
-	stagechans map[string]chan map[string]interface{}
+	stagechans map[string]chan *OutPut
 }
 
 var All *AllStages
@@ -77,19 +82,22 @@ func (sinfo *StageInfo) AddStage(s *StageInfo, isinput bool) {
 }
 
 type ExecutorCaller struct {
-	input_chan chan map[string]interface{}
+	input_chan chan *OutPut
 	exc        Executor
 	col        Collector
+	id         uint
 }
 
 var callers []*ExecutorCaller
 var dispcallers []*DispPatcherCaller
 var i int
+var nextids *NextIdGetter
 
 func init() {
 	callers = make([]*ExecutorCaller, 0)
 	dispcallers = make([]*DispPatcherCaller, 0)
 	i = 0
+	nextids = NewNextIdGettr(1)
 }
 
 func getExecutionGraph(allstgs *AllStages) *GraphNodePool {
@@ -113,9 +121,9 @@ func CreateExecutionTree() {
 		panic("Dectected cycle in execution tree, exiting")
 	}
 	exreg := GetRegistry()
-	stagechans := make(map[string]chan map[string]interface{})
+	stagechans := make(map[string]chan *OutPut)
 	for name, _ := range All.stages {
-		stagechans[name] = make(chan map[string]interface{}, 10240)
+		stagechans[name] = make(chan *OutPut, 10240)
 	}
 
 	All.stagechans = stagechans
@@ -128,15 +136,16 @@ func CreateExecutionTree() {
 			exc := exreg.GetInstance(stage.executor_class)
 			ex_caller.exc = exc
 			ex_caller.input_chan = stagechans[stage.name]
+			ex_caller.id = nextids.NextId()
 			callers = append(callers, ex_caller)
-			if len(stage.output_stages) == 0 {
-				continue
-			}
 			if tc == nil {
-				tc = NewTupleCollector(stage.name)
+				tc = NewTupleCollector(stage.name, nextids.NextId(), 0)
 				for _, stg := range stage.output_stages {
 					tc.AddOutput(stagechans[stg.name])
 				}
+			} else {
+				tc = tc.Copy()
+				tc.id = uint64(ex_caller.id) << 32
 			}
 			ex_caller.col = tc
 			ex_caller.exc.AddCollector(tc)
@@ -148,16 +157,21 @@ func CreateExecutionTree() {
 			disp_caller := new(DispPatcherCaller)
 			disp := dispreg.GetInstance(dispstage.dispatcher_class)
 			disp_caller.dis = disp
-			disp_caller.ticker = time.NewTicker(time.Nanosecond * 10000000)
+			disp_caller.id = nextids.NextId()
+			disp_caller.ticker = time.NewTicker(time.Nanosecond * 1000000000)
 			dispcallers = append(dispcallers, disp_caller)
 			if len(dispstage.output_stages) == 0 {
 				continue
 			}
 			if tc == nil {
-				tc = NewTupleCollector(dispstage.name)
+				tc = NewTupleCollector(dispstage.name, disp_caller.id, disp_caller.id)
 				for _, stg := range dispstage.output_stages {
 					tc.AddOutput(stagechans[stg.name])
 				}
+			} else {
+				tc = tc.Copy()
+				tc.id = uint64(disp_caller.id) << 32
+				tc.isdisp = disp_caller.id
 			}
 			disp_caller.col = tc
 		}
@@ -185,7 +199,7 @@ func (All *AllStages) Print() {
 	}
 }
 
-func (All *AllStages) getChan(stage string) chan map[string]interface{} {
+func (All *AllStages) getChan(stage string) chan *OutPut {
 	ch, ok := All.stagechans[stage]
 	if ok {
 		return ch
@@ -197,18 +211,18 @@ func init() {
 	All = newAllStageInfo()
 }
 
-func taskRunner(caller *ExecutorCaller, i int) {
-	caller.exc.AddIdentity(i)
+func taskRunner(caller *ExecutorCaller) {
+	caller.exc.AddIdentity(caller.id)
 	for {
 		data := <-caller.input_chan
-		caller.exc.Execute(data)
+		caller.exc.Execute(data.data, data.context)
 	}
 }
 
 func Run() {
 	i := 1
 	for _, caller := range callers {
-		go taskRunner(caller, i)
+		go taskRunner(caller)
 		i++
 	}
 

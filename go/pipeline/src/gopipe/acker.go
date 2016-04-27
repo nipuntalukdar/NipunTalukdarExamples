@@ -17,34 +17,44 @@ type Tracker interface {
 	TimedOut(id string)
 }
 
-type ackvalue struct {
+type AckValue struct {
 	id  uint64
 	val uint64
 }
 
 type Acker interface {
 	AddAck(id uint64, val uint64)
-	AddTracking(ids string)
+	AddTracking(ids string, trackerId uint) uint64
+	AddTracker(id uint, tracker Tracker)
+	SignalFail(id uint64)
+	Start()
+}
+
+var ackerinst Acker
+
+type trackIDs struct {
+	trackerId uint
+	ids       string
 }
 
 type LocalAcker struct {
 	currentTracks     []map[uint64]uint64
-	currentTrackIds   []map[uint64]string
+	currentTrackIds   []map[uint64]*trackIDs
 	numParallelTracks uint
 	locks             []*sync.Mutex
 	and_with          uint
 	next_id           *uint64
-	tracker           Tracker
-	input_chan        chan *ackvalue
+	trackers          map[uint]Tracker
+	input_chan        chan *AckValue
 	timeout           int64
 	exheap            *expiryHeap
 }
 
-func NewAckValue(id uint64, value uint64) *ackvalue {
-	return &ackvalue{id, value}
+func NewAckValue(id uint64, value uint64) *AckValue {
+	return &AckValue{id, value}
 }
 
-func NewLocalAcker(parallel uint, tracker Tracker, timeout int64) *LocalAcker {
+func NewLocalAcker(parallel uint, timeout int64) *LocalAcker {
 	if parallel == 0 || parallel > max_parallel {
 		parallel = max_parallel
 	}
@@ -54,7 +64,7 @@ func NewLocalAcker(parallel uint, tracker Tracker, timeout int64) *LocalAcker {
 	for ; i < parallel; i++ {
 		lc.currentTracks = append(lc.currentTracks, make(map[uint64]uint64))
 		lc.locks = append(lc.locks, new(sync.Mutex))
-		lc.currentTrackIds = append(lc.currentTrackIds, make(map[uint64]string))
+		lc.currentTrackIds = append(lc.currentTrackIds, make(map[uint64]*trackIDs))
 		lc.next_id = new(uint64)
 	}
 	lc.numParallelTracks = parallel
@@ -68,23 +78,21 @@ func NewLocalAcker(parallel uint, tracker Tracker, timeout int64) *LocalAcker {
 		parallel++
 	}
 	lc.and_with = uint(math.Pow(2, float64(parallel))) - 1
-	lc.tracker = tracker
-	lc.input_chan = make(chan *ackvalue, 102400)
+	lc.trackers = make(map[uint]Tracker)
+	lc.input_chan = make(chan *AckValue, 102400)
 	lc.timeout = timeout
 	lc.exheap = NewExpiryHeap()
 	return lc
 }
 
-func (acker *LocalAcker) AddTracking(ids string) uint64 {
+func (acker *LocalAcker) AddTracking(ids string, tracker_id uint) uint64 {
 	id := atomic.AddUint64(acker.next_id, 1)
 	index := (acker.and_with & uint(id)) % acker.numParallelTracks
 	acker.locks[index].Lock()
 	defer acker.locks[index].Unlock()
 	acker.currentTracks[index][id] = 0
-	acker.currentTrackIds[index][id] = ids
-	expval := new(expiryValue)
-	expval.id = id
-	expval.timestamp = time.Now().Unix() + acker.timeout
+	acker.currentTrackIds[index][id] = &trackIDs{tracker_id, ids}
+	expval := &expiryValue{time.Now().Unix() + acker.timeout, id}
 	heap.Push(acker.exheap, expval)
 	return id
 }
@@ -98,6 +106,9 @@ func (acker *LocalAcker) AddAck(id uint64, val uint64) {
 	acker.input_chan <- aval
 }
 
+func (acker *LocalAcker) AddTracker(id uint, tracker Tracker) {
+	acker.trackers[id] = tracker
+}
 func (acker *LocalAcker) updateAck(id uint64, val uint64) {
 	index := (acker.and_with & uint(id)) % acker.numParallelTracks
 	acker.locks[index].Lock()
@@ -110,10 +121,10 @@ func (acker *LocalAcker) updateAck(id uint64, val uint64) {
 
 	if val == fail_indicator {
 		delete(acker.currentTracks[index], id)
-		ids := acker.currentTrackIds[index][id]
+		trids := acker.currentTrackIds[index][id]
 		delete(acker.currentTrackIds[index], id)
 		acker.locks[index].Unlock()
-		acker.tracker.Fail(ids)
+		acker.trackers[trids.trackerId].Fail(trids.ids)
 	} else {
 		cval ^= val
 		if cval != 0 {
@@ -121,10 +132,10 @@ func (acker *LocalAcker) updateAck(id uint64, val uint64) {
 			acker.locks[index].Unlock()
 		} else {
 			delete(acker.currentTracks[index], id)
-			ids := acker.currentTrackIds[index][id]
+			trids := acker.currentTrackIds[index][id]
 			delete(acker.currentTrackIds[index], id)
 			acker.locks[index].Unlock()
-			acker.tracker.Ack(ids)
+			acker.trackers[trids.trackerId].Ack(trids.ids)
 		}
 	}
 }
@@ -139,10 +150,10 @@ func (acker *LocalAcker) handleTimeOut(id uint64) {
 		return
 	}
 	delete(acker.currentTracks[index], id)
-	ids := acker.currentTrackIds[index][id]
+	trids := acker.currentTrackIds[index][id]
 	delete(acker.currentTrackIds[index], id)
 	acker.locks[index].Unlock()
-	acker.tracker.TimedOut(ids)
+	acker.trackers[trids.trackerId].TimedOut(trids.ids)
 }
 
 func (acker *LocalAcker) Start() {
@@ -236,4 +247,14 @@ func (exh *expiryHeap) popIfLess(t int64) (*expiryValue, bool) {
 		return heap.Pop(exh).(*expiryValue), true
 	}
 	return nil, false
+}
+
+func init() {
+	ac := NewLocalAcker(8, 10)
+	ackerinst = ac
+	ackerinst.Start()
+}
+
+func GetAcker() Acker {
+	return ackerinst
 }

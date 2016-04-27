@@ -1,7 +1,7 @@
 package gopipe
 
 type Executor interface {
-	Execute(map[string]interface{})
+	Execute(data map[string]interface{}, context interface{})
 	AddCollector(Collector)
-	AddIdentity(int)
+	AddIdentity(uint)
 }

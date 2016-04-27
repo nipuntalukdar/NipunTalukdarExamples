@@ -10,15 +10,17 @@ type DispPatcherCaller struct {
 	ackr      Acker
 	nanodelay int64
 	ticker    *time.Ticker
+	id        uint
 }
 
 func (dcaller *DispPatcherCaller) NewDispatcher(d Dispatcher, coll Collector,
-	acker Acker, nanodelay int64) *DispPatcherCaller {
+	acker Acker, nanodelay int64, id uint) *DispPatcherCaller {
 	if nanodelay < 0 {
 		nanodelay = -nanodelay
 	}
 	ticker := time.NewTicker(time.Nanosecond * time.Duration(nanodelay))
-	return &DispPatcherCaller{d, coll, acker, nanodelay, ticker}
+	GetAcker().AddTracker(id, d)
+	return &DispPatcherCaller{d, coll, acker, nanodelay, ticker, id}
 }
 
 func (dcaller *DispPatcherCaller) Stop() {
