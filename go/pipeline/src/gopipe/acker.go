@@ -102,6 +102,7 @@ func (acker *LocalAcker) SignalFail(id uint64) {
 }
 
 func (acker *LocalAcker) AddAck(id uint64, val uint64) {
+	LOG.Infof("Added ack %d %d", id, val)
 	aval := NewAckValue(id, val)
 	acker.input_chan <- aval
 }
@@ -153,6 +154,7 @@ func (acker *LocalAcker) handleTimeOut(id uint64) {
 	trids := acker.currentTrackIds[index][id]
 	delete(acker.currentTrackIds[index], id)
 	acker.locks[index].Unlock()
+	LOG.Debugf("Timing out... %s", trids.ids)
 	acker.trackers[trids.trackerId].TimedOut(trids.ids)
 }
 

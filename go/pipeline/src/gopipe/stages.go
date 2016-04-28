@@ -51,6 +51,7 @@ func NewDispatcherStageInfo(num_tasks int, dispatcher_class string, name string)
 
 func (dsinfo *DispatcherStageInfo) AddOutStage(s *StageInfo) {
 	All.addDispStage(dsinfo)
+	All.addStage(s)
 	for _, sexisting := range dsinfo.output_stages {
 		if sexisting == s {
 			return
@@ -62,6 +63,7 @@ func (dsinfo *DispatcherStageInfo) AddOutStage(s *StageInfo) {
 func (sinfo *StageInfo) AddStage(s *StageInfo, isinput bool) {
 	var x []*StageInfo
 	All.addStage(s)
+	All.addStage(sinfo)
 	if isinput {
 		x = sinfo.input_stages
 	} else {
@@ -158,7 +160,7 @@ func CreateExecutionTree() {
 			disp := dispreg.GetInstance(dispstage.dispatcher_class)
 			disp_caller.dis = disp
 			disp_caller.id = nextids.NextId()
-			disp_caller.ticker = time.NewTicker(time.Nanosecond * 1000000000)
+			disp_caller.ticker = time.NewTicker(time.Millisecond * 10)
 			dispcallers = append(dispcallers, disp_caller)
 			if len(dispstage.output_stages) == 0 {
 				continue
@@ -221,6 +223,7 @@ func taskRunner(caller *ExecutorCaller) {
 
 func Run() {
 	i := 1
+	LOG.Infof("Ex callers %v\n", callers)
 	for _, caller := range callers {
 		go taskRunner(caller)
 		i++

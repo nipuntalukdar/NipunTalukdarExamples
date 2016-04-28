@@ -29,6 +29,7 @@ func (dcaller *DispPatcherCaller) Stop() {
 
 func (dcaller *DispPatcherCaller) runCaller() {
 	dcaller.dis.Prepare(dcaller.col, nil)
+	GetAcker().AddTracker(dcaller.id, dcaller.dis)
 	for _ = range dcaller.ticker.C {
 		dcaller.dis.LookForWork()
 	}

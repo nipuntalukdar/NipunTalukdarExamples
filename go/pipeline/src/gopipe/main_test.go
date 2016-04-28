@@ -99,15 +99,15 @@ func (disp *DispatcherEx) LookForWork() {
 }
 
 func (disp *DispatcherEx) Fail(id string) {
-	fmt.Printf("Failed msg id %s", id)
+	LOG.Infof("Failed msg id %s", id)
 }
 
 func (disp *DispatcherEx) Ack(id string) {
-	fmt.Printf("Processed msg id %s", id)
+	LOG.Infof("Processed msg id %s", id)
 }
 
 func (disp *DispatcherEx) TimedOut(id string) {
-	fmt.Printf("Timing out %s\n", id)
+	LOG.Infof("Timing out %s\n", id)
 }
 
 func (disp *DispatcherEx) Prepare(col Collector, tr *Tracker) {
@@ -121,7 +121,7 @@ func (disp *DispatcherEx) Shutdown() {
 
 func TestExecutionTree(t *testing.T) {
 
-	fmt.Printf("Starting tree.... \n")
+	LOG.Infof("Starting tree.... \n")
 	exreg := GetRegistry()
 	dispreg := GetDispRegistry()
 	dispreg.AddType("dispatcher1", new(DispatcherEx))

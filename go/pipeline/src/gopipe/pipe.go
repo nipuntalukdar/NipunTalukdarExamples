@@ -63,7 +63,7 @@ func (tc *TupleCollector) Emit(tuple map[string]interface{}, context interface{}
 		if tc.IsForDispatcher() {
 			tuple_uuid := context.(string)
 			id := GetAcker().AddTracking(tuple_uuid, tc.isdisp)
-			GetAcker().AddAck(id, tc.id)
+			LOG.Infof("Added tracking %s %d", tuple_uuid, id)
 			tc.emitTrack(tuple, &AckValue{id, 0})
 		} else {
 			tc.emitTrack(tuple, context.(*AckValue))

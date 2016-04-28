@@ -44,6 +44,7 @@ type Logger struct {
 	log     *logrus.Logger
 	rolsize int
 	fsize   int
+	t       *time.Ticker
 }
 
 func (logger *Logger) RollOver() {
@@ -148,31 +149,42 @@ func NewLogger() *Logger {
 	logrloger.Out = writer
 	logrloger.Formatter = &logrus.TextFormatter{DisableColors: true,
 		TimestampFormat: "2006-01-02T15:04:05"}
+	t := time.NewTicker(MAX_LOG_INTERVAL)
 	LOG = logrloger
 	return &Logger{events, outfile, file, buffer, max_back_up,
-		outdir, regexp, writer, logrloger, max_log_size, int(fsize)}
+		outdir, regexp, writer, logrloger, max_log_size, int(fsize), t}
+}
+
+func (logger *Logger) flush() {
+	n, err := logger.file.Write(logger.buffer.Bytes())
+	if err != nil {
+		fmt.Printf("Logging error\n")
+		os.Exit(1)
+	}
+	logger.fsize += n
+	logger.buffer.Reset()
+	if logger.fsize > logger.rolsize {
+		logger.RollOver()
+	}
 }
 
 func (logger *Logger) addMsg(msg []byte) {
 	logger.buffer.Write(msg)
 	if logger.buffer.Len() >= WRITE_SIZE {
-		n, err := logger.file.Write(logger.buffer.Bytes())
-		if err != nil {
-			fmt.Printf("Logging error\n")
-			os.Exit(1)
-		}
-		logger.fsize += n
-		logger.buffer.Reset()
-		if logger.fsize > logger.rolsize {
-			logger.RollOver()
-		}
+		logger.flush()
 	}
 }
 
 func logSyncer(logger *Logger) {
 	for {
-		msg := <-logger.events
-		logger.addMsg(msg)
+		select {
+		case msg := <-logger.events:
+			logger.addMsg(msg)
+		case _ = <-logger.t.C:
+			if logger.buffer.Len() > 0 {
+				logger.flush()
+			}
+		}
 	}
 }
 
