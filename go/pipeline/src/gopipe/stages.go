@@ -6,15 +6,19 @@ import (
 )
 
 type StageInfo struct {
-	input_stages   []*StageInfo
-	executor_class string
-	num_tasks      int
-	name           string
-	output_stages  []*StageInfo
+	input_stages         []*StageInfo
+	grpd_inp_stages      []*StageInfo
+	grpd_inp_disp_stages []*DispatcherStageInfo
+	executor_class       string
+	num_tasks            int
+	name                 string
+	output_stages        []*StageInfo
+	grpd_out_stages      map[string][]*StageInfo
 }
 
 type DispatcherStageInfo struct {
 	output_stages    []*StageInfo
+	grpd_out_stages  map[string][]*StageInfo
 	dispatcher_class string
 	num_tasks        int
 	name             string
@@ -32,6 +36,24 @@ type AllStages struct {
 }
 
 var All *AllStages
+
+func isInStages(inp []*StageInfo, st *StageInfo) bool {
+	for _, s := range inp {
+		if s == st {
+			return true
+		}
+	}
+	return false
+}
+
+func isInDispStages(inp []*DispatcherStageInfo, st *DispatcherStageInfo) bool {
+	for _, s := range inp {
+		if s == st {
+			return true
+		}
+	}
+	return false
+}
 
 func NewStageInfo(num_tasks int, executor_class string, name string) *StageInfo {
 	x := new(StageInfo)
@@ -60,6 +82,51 @@ func (dsinfo *DispatcherStageInfo) AddOutStage(s *StageInfo) {
 	dsinfo.output_stages = append(dsinfo.output_stages, s)
 }
 
+func (dsinfo *DispatcherStageInfo) AddGroupingOutStage(s *StageInfo, groupField string) {
+	stages, ok := dsinfo.grpd_out_stages[groupField]
+	if ok {
+		if isInStages(stages, s) {
+			return
+		}
+		stages = []*StageInfo{}
+	}
+	dsinfo.grpd_out_stages[groupField] = append(stages, s)
+	All.addDispStage(dsinfo)
+	All.addStage(s)
+	s.AddDispGroupingStage(dsinfo)
+}
+
+func (sinfo *StageInfo) AddGroupingStage(s *StageInfo, groupField string, isinput bool) {
+	if isinput && isInStages(sinfo.grpd_inp_stages, s) {
+		return
+	}
+	if !isinput {
+		stages, ok := sinfo.grpd_out_stages[groupField]
+		if ok {
+			if isInStages(stages, s) {
+				return
+			}
+		} else {
+			stages = []*StageInfo{}
+		}
+		sinfo.grpd_out_stages[groupField] = append(stages, s)
+		s.AddGroupingStage(sinfo, groupField, true)
+	} else {
+		sinfo.grpd_inp_stages = append(sinfo.grpd_inp_stages, s)
+		s.AddGroupingStage(sinfo, groupField, false)
+	}
+	All.addStage(s)
+	All.addStage(sinfo)
+}
+
+func (sinfo *StageInfo) AddDispGroupingStage(disp *DispatcherStageInfo) {
+	if isInDispStages(sinfo.grpd_inp_disp_stages, disp) {
+		return
+	}
+	sinfo.grpd_inp_disp_stages = append(sinfo.grpd_inp_disp_stages, disp)
+	All.addDispStage(disp)
+}
+
 func (sinfo *StageInfo) AddStage(s *StageInfo, isinput bool) {
 	var x []*StageInfo
 	All.addStage(s)
@@ -85,6 +152,7 @@ func (sinfo *StageInfo) AddStage(s *StageInfo, isinput bool) {
 
 type ExecutorCaller struct {
 	input_chan chan *OutPut
+	grp_chan   chan *OutPut
 	exc        Executor
 	col        Collector
 	id         uint
@@ -124,20 +192,32 @@ func CreateExecutionTree() {
 	}
 	exreg := GetRegistry()
 	stagechans := make(map[string]chan *OutPut)
-	for name, _ := range All.stages {
+	grouped_chans := make(map[string][]chan *OutPut)
+	for name, stg := range All.stages {
 		stagechans[name] = make(chan *OutPut, 10240)
+		if len(stg.grpd_inp_stages) > 0 || len(stg.grpd_inp_disp_stages) > 0 {
+			group_chans := []chan *OutPut{}
+			for i := 0; i < stg.num_tasks; i++ {
+				group_chans = append(group_chans, make(chan *OutPut, 10240))
+			}
+			grouped_chans[name] = group_chans
+		}
 	}
 
 	All.stagechans = stagechans
 	var tc *TupleCollector
 	i := 0
-	for _, stage := range All.stages {
+	for name, stage := range All.stages {
 		tc = nil
+		group_chans, grouped := grouped_chans[name]
 		for i = 0; i < stage.num_tasks; i++ {
 			ex_caller := new(ExecutorCaller)
 			exc := exreg.GetInstance(stage.executor_class)
 			ex_caller.exc = exc
 			ex_caller.input_chan = stagechans[stage.name]
+			if grouped {
+				ex_caller.grp_chan = group_chans[i]
+			}
 			ex_caller.id = nextids.NextId()
 			callers = append(callers, ex_caller)
 			if tc == nil {
@@ -215,23 +295,35 @@ func init() {
 
 func taskRunner(caller *ExecutorCaller) {
 	caller.exc.AddIdentity(caller.id)
-	for {
-		data := <-caller.input_chan
-		caller.exc.Execute(data.data, data.context)
+	if caller.grp_chan == nil {
+		for {
+			data := <-caller.input_chan
+			caller.exc.Execute(data.data, data.context)
+		}
+	} else {
+		var data *OutPut
+		for {
+			select {
+			case data = <-caller.input_chan:
+			case data = <-caller.grp_chan:
+			}
+			caller.exc.Execute(data.data, data.context)
+		}
 	}
 }
 
 func Run() {
-	i := 1
-	LOG.Infof("Ex callers %v\n", callers)
 	for _, caller := range callers {
 		go taskRunner(caller)
-		i++
 	}
 
 	for _, dispcaller := range dispcallers {
-		go func() {
-			dispcaller.runCaller()
-		}()
+		GetAcker().AddTracker(dispcaller.id, dispcaller.dis)
+	}
+
+	for _, dispcaller := range dispcallers {
+		go func(disp_caller *DispPatcherCaller) {
+			disp_caller.runCaller()
+		}(dispcaller)
 	}
 }

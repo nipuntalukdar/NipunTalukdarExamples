@@ -116,7 +116,7 @@ func (disp *DispatcherEx) Prepare(col Collector, tr *Tracker) {
 }
 
 func (disp *DispatcherEx) Shutdown() {
-	fmt.Println("Shutting down \n")
+	fmt.Println("Shutting down")
 }
 
 func TestExecutionTree(t *testing.T) {

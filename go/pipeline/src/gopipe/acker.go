@@ -93,7 +93,9 @@ func (acker *LocalAcker) AddTracking(ids string, tracker_id uint) uint64 {
 	acker.currentTracks[index][id] = 0
 	acker.currentTrackIds[index][id] = &trackIDs{tracker_id, ids}
 	expval := &expiryValue{time.Now().Unix() + acker.timeout, id}
+	acker.exheap.lock.Lock()
 	heap.Push(acker.exheap, expval)
+	acker.exheap.lock.Unlock()
 	return id
 }
 
@@ -102,7 +104,7 @@ func (acker *LocalAcker) SignalFail(id uint64) {
 }
 
 func (acker *LocalAcker) AddAck(id uint64, val uint64) {
-	LOG.Infof("Added ack %d %d", id, val)
+	LOG.Debugf("Added ack %d %d", id, val)
 	aval := NewAckValue(id, val)
 	acker.input_chan <- aval
 }
@@ -176,7 +178,9 @@ func runAcker(acker *LocalAcker) {
 func expiryChecker(acker *LocalAcker) {
 	time.Sleep(1 * time.Second)
 	for {
+		acker.exheap.lock.Lock()
 		expval, ret := acker.exheap.popIfLess(time.Now().Unix())
+		acker.exheap.lock.Unlock()
 		if !ret {
 			time.Sleep(1 * time.Second)
 			continue
@@ -196,38 +200,26 @@ type expiryHeap struct {
 }
 
 func NewExpiryHeap() *expiryHeap {
-	exh := new(expiryHeap)
-	exh.lock = new(sync.Mutex)
-	return exh
+	return &expiryHeap{[]*expiryValue{}, &sync.Mutex{}}
 }
 
 func (exh *expiryHeap) Len() int {
-	exh.lock.Lock()
-	defer exh.lock.Unlock()
 	return len(exh.expvals)
 }
 
 func (exh *expiryHeap) Less(i, j int) bool {
-	exh.lock.Lock()
-	defer exh.lock.Unlock()
 	return exh.expvals[i].timestamp < exh.expvals[j].timestamp
 }
 
 func (exh *expiryHeap) Swap(i, j int) {
-	exh.lock.Lock()
-	defer exh.lock.Unlock()
 	exh.expvals[i], exh.expvals[j] = exh.expvals[j], exh.expvals[i]
 }
 
 func (exh *expiryHeap) Push(x interface{}) {
-	exh.lock.Lock()
-	defer exh.lock.Unlock()
 	exh.expvals = append(exh.expvals, x.(*expiryValue))
 }
 
 func (exh *expiryHeap) Pop() interface{} {
-	exh.lock.Lock()
-	defer exh.lock.Unlock()
 	vals := exh.expvals
 	n := len(vals)
 	if n == 0 {
@@ -242,9 +234,7 @@ func (exh *expiryHeap) popIfLess(t int64) (*expiryValue, bool) {
 	if exh.Len() == 0 {
 		return nil, false
 	}
-	exh.lock.Lock()
 	x := exh.expvals[0]
-	exh.lock.Unlock()
 	if x.timestamp <= t {
 		return heap.Pop(exh).(*expiryValue), true
 	}

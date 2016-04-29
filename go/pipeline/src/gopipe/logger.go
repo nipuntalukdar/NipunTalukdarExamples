@@ -117,7 +117,7 @@ func openAndLockFile(outfile string) (*os.File, int64) {
 	file.Close()
 	file, err = os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
-		fmt.Printf("Failed to open file:%s, err:%v\n", file, err)
+		fmt.Printf("Failed to open file:%v, err:%v\n", file, err)
 		os.Exit(1)
 	}
 	fd := file.Fd()
