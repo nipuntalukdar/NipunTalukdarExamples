@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+type outGroupStages struct {
+	name         string
+	groupingKeys []string
+}
+
 type StageInfo struct {
 	input_stages         []*StageInfo
 	grpd_inp_stages      []*StageInfo
@@ -13,12 +18,14 @@ type StageInfo struct {
 	num_tasks            int
 	name                 string
 	output_stages        []*StageInfo
-	grpd_out_stages      map[string][]*StageInfo
+	grpd_out_stages      map[string]outGroupStages
+	numOutGroup          int
 }
 
 type DispatcherStageInfo struct {
 	output_stages    []*StageInfo
-	grpd_out_stages  map[string][]*StageInfo
+	grpd_out_stages  map[string]outGroupStages
+	numOutGroup      int
 	dispatcher_class string
 	num_tasks        int
 	name             string
@@ -60,6 +67,7 @@ func NewStageInfo(num_tasks int, executor_class string, name string) *StageInfo 
 	x.executor_class = executor_class
 	x.num_tasks = num_tasks
 	x.name = name
+	x.grpd_out_stages = make(map[string]outGroupStages)
 	return x
 }
 
@@ -68,6 +76,7 @@ func NewDispatcherStageInfo(num_tasks int, dispatcher_class string, name string)
 	x.dispatcher_class = dispatcher_class
 	x.num_tasks = num_tasks
 	x.name = name
+	x.grpd_out_stages = make(map[string]outGroupStages)
 	return x
 }
 
@@ -82,41 +91,63 @@ func (dsinfo *DispatcherStageInfo) AddOutStage(s *StageInfo) {
 	dsinfo.output_stages = append(dsinfo.output_stages, s)
 }
 
-func (dsinfo *DispatcherStageInfo) AddGroupingOutStage(s *StageInfo, groupField string) {
-	stages, ok := dsinfo.grpd_out_stages[groupField]
-	if ok {
-		if isInStages(stages, s) {
-			return
+func isInArray(val string, array []string) bool {
+	for _, v := range array {
+		if v == val {
+			return true
 		}
-		stages = []*StageInfo{}
 	}
-	dsinfo.grpd_out_stages[groupField] = append(stages, s)
+	return false
+}
+
+func (dsinfo *DispatcherStageInfo) AddGroupingOutStage(s *StageInfo, groupField []string) {
+	if len(groupField) == 0 {
+		panic("invalid grouping keys")
+	}
+	_, ok := dsinfo.grpd_out_stages[s.name]
+	if ok {
+		return
+	}
+	outgroup := outGroupStages{s.name, []string{}}
+	for _, key := range groupField {
+		if isInArray(key, outgroup.groupingKeys) {
+			continue
+		}
+		outgroup.groupingKeys = append(outgroup.groupingKeys, key)
+	}
+	dsinfo.grpd_out_stages[s.name] = outgroup
+	dsinfo.numOutGroup++
 	All.addDispStage(dsinfo)
 	All.addStage(s)
 	s.AddDispGroupingStage(dsinfo)
 }
 
-func (sinfo *StageInfo) AddGroupingStage(s *StageInfo, groupField string, isinput bool) {
+func (sinfo *StageInfo) AddGroupingStage(s *StageInfo, groupFields []string, isinput bool) {
 	if isinput && isInStages(sinfo.grpd_inp_stages, s) {
 		return
 	}
 	if !isinput {
-		stages, ok := sinfo.grpd_out_stages[groupField]
-		if ok {
-			if isInStages(stages, s) {
-				return
+		_, ok := sinfo.grpd_out_stages[s.name]
+		if !ok {
+			outgroup := outGroupStages{s.name, []string{}}
+			for _, key := range groupFields {
+				if isInArray(key, outgroup.groupingKeys) {
+					continue
+				}
+				outgroup.groupingKeys = append(outgroup.groupingKeys, key)
 			}
-		} else {
-			stages = []*StageInfo{}
+			sinfo.grpd_out_stages[s.name] = outgroup
+			s.AddGroupingStage(sinfo, groupFields, !isinput)
+			sinfo.numOutGroup++
 		}
-		sinfo.grpd_out_stages[groupField] = append(stages, s)
-		s.AddGroupingStage(sinfo, groupField, true)
 	} else {
-		sinfo.grpd_inp_stages = append(sinfo.grpd_inp_stages, s)
-		s.AddGroupingStage(sinfo, groupField, false)
+		if !isInStages(sinfo.grpd_inp_stages, s) {
+			sinfo.grpd_inp_stages = append(sinfo.grpd_inp_stages, s)
+			s.AddGroupingStage(sinfo, groupFields, !isinput)
+		}
 	}
-	All.addStage(s)
 	All.addStage(sinfo)
+	All.addStage(s)
 }
 
 func (sinfo *StageInfo) AddDispGroupingStage(disp *DispatcherStageInfo) {
@@ -185,6 +216,18 @@ func getExecutionGraph(allstgs *AllStages) *GraphNodePool {
 	return npl
 }
 
+func copyStringSlice(input []string) []string {
+	out := []string{}
+	for _, v := range input {
+		out = append(out, v)
+	}
+	return out
+}
+
+func addOutGroupingStage(caller *ExecutorCaller) {
+
+}
+
 func CreateExecutionTree() {
 	npl := getExecutionGraph(All)
 	if npl.DetectAnyCycle() {
@@ -209,21 +252,31 @@ func CreateExecutionTree() {
 	i := 0
 	for name, stage := range All.stages {
 		tc = nil
-		group_chans, grouped := grouped_chans[name]
 		for i = 0; i < stage.num_tasks; i++ {
 			ex_caller := new(ExecutorCaller)
 			exc := exreg.GetInstance(stage.executor_class)
 			ex_caller.exc = exc
 			ex_caller.input_chan = stagechans[stage.name]
-			if grouped {
-				ex_caller.grp_chan = group_chans[i]
-			}
 			ex_caller.id = nextids.NextId()
+			_, ok := grouped_chans[name]
+			if ok {
+				ex_caller.grp_chan = grouped_chans[name][i]
+			}
 			callers = append(callers, ex_caller)
 			if tc == nil {
 				tc = NewTupleCollector(stage.name, nextids.NextId(), 0)
 				for _, stg := range stage.output_stages {
 					tc.AddOutput(stagechans[stg.name])
+				}
+				for stagename, outGroup := range stage.grpd_out_stages {
+					chans := grouped_chans[stagename]
+					tc.groupd_chans = append(tc.groupd_chans, &groupedChans{stagename,
+						outGroup.groupingKeys, uint32(len(chans)), chans})
+					tc.groupd_chans[len(tc.groupd_chans)-1].groupKeys = copyStringSlice(outGroup.groupingKeys)
+					for _, key := range outGroup.groupingKeys {
+						addIfNotPresent(key, &tc.all_group_keys)
+					}
+					tc.num_grouped++
 				}
 			} else {
 				tc = tc.Copy()
@@ -242,13 +295,23 @@ func CreateExecutionTree() {
 			disp_caller.id = nextids.NextId()
 			disp_caller.ticker = time.NewTicker(time.Millisecond * 10)
 			dispcallers = append(dispcallers, disp_caller)
-			if len(dispstage.output_stages) == 0 {
+			if len(dispstage.output_stages) == 0 && len(dispstage.grpd_out_stages) == 0 {
 				continue
 			}
 			if tc == nil {
 				tc = NewTupleCollector(dispstage.name, disp_caller.id, disp_caller.id)
 				for _, stg := range dispstage.output_stages {
 					tc.AddOutput(stagechans[stg.name])
+				}
+				for stagename, outGroup := range dispstage.grpd_out_stages {
+					chans := grouped_chans[stagename]
+					tc.groupd_chans = append(tc.groupd_chans, &groupedChans{stagename,
+						outGroup.groupingKeys, uint32(len(chans)), chans})
+					tc.groupd_chans[len(tc.groupd_chans)-1].groupKeys = copyStringSlice(outGroup.groupingKeys)
+					for _, key := range outGroup.groupingKeys {
+						addIfNotPresent(key, &tc.all_group_keys)
+					}
+					tc.num_grouped++
 				}
 			} else {
 				tc = tc.Copy()

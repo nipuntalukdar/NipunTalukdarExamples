@@ -56,6 +56,7 @@ func (ex *Executor3) Execute(input map[string]interface{}, context interface{}) 
 	LOG.Infof("Executor3:%d working on %v", ex.identity, input)
 	mp := make(map[string]interface{})
 	mp["data"] = input["data"].(string) + " three"
+	mp["hi"] = NewRandomUUIDStr()
 	ex.col.Emit(mp, context)
 	ex.col.Ack(context)
 }
@@ -94,6 +95,8 @@ type DispatcherEx struct {
 func (disp *DispatcherEx) LookForWork() {
 	mp := make(map[string]interface{})
 	mp[NewRandomUUIDStr()] = NewRandomUUIDStr()
+	mp["hello"] = NewRandomUUIDStr()
+	mp["hi"] = NewRandomUUIDStr()
 	LOG.Infof("Looking for work")
 	disp.col.Emit(mp, NewRandomUUIDStr())
 }
@@ -139,8 +142,8 @@ func TestExecutionTree(t *testing.T) {
 	stageInfo_one.AddStage(stageInfo_four, false)
 	stageInfo_two.AddStage(stageInfo_three, false)
 	stageInfo_two.AddStage(stageInfo_four, false)
-	stageInfo_three.AddStage(stageInfo_four, false)
-	dispstgInfo_one.AddOutStage(stageInfo_one)
+	stageInfo_three.AddGroupingStage(stageInfo_four, []string{"hi"}, false)
+	dispstgInfo_one.AddGroupingOutStage(stageInfo_one, []string{"hello"})
 
 	All.Print()
 	CreateExecutionTree()

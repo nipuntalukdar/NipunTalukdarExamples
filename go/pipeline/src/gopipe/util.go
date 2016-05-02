@@ -75,3 +75,12 @@ func NewRandomUUIDStr() string {
 		(uuid.lsb>>8)&255,
 		uuid.lsb&255)
 }
+
+func addIfNotPresent(key string, array *[]string) {
+	for _, v := range *array {
+		if v == key {
+			return
+		}
+	}
+	*array = append(*array, key)
+}
