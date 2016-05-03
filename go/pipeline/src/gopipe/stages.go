@@ -80,6 +80,21 @@ func NewDispatcherStageInfo(num_tasks int, dispatcher_class string, name string)
 	return x
 }
 
+func (sinfo *DispatcherStageInfo) CheckStage(s *StageInfo) {
+	for _, outstage := range sinfo.output_stages {
+		if outstage.name == s.name {
+			for name, _ := range sinfo.grpd_out_stages {
+				if name == s.name {
+					panic(fmt.Sprintf("Stage:%s in both grouping/non-grouping stage to :%s",
+						s.name, sinfo.name))
+					break
+				}
+			}
+			break
+		}
+	}
+}
+
 func (dsinfo *DispatcherStageInfo) AddOutStage(s *StageInfo) {
 	All.addDispStage(dsinfo)
 	All.addStage(s)
@@ -89,15 +104,7 @@ func (dsinfo *DispatcherStageInfo) AddOutStage(s *StageInfo) {
 		}
 	}
 	dsinfo.output_stages = append(dsinfo.output_stages, s)
-}
-
-func isInArray(val string, array []string) bool {
-	for _, v := range array {
-		if v == val {
-			return true
-		}
-	}
-	return false
+	dsinfo.CheckStage(s)
 }
 
 func (dsinfo *DispatcherStageInfo) AddGroupingOutStage(s *StageInfo, groupField []string) {
@@ -120,6 +127,7 @@ func (dsinfo *DispatcherStageInfo) AddGroupingOutStage(s *StageInfo, groupField 
 	All.addDispStage(dsinfo)
 	All.addStage(s)
 	s.AddDispGroupingStage(dsinfo)
+	dsinfo.CheckStage(s)
 }
 
 func (sinfo *StageInfo) AddGroupingStage(s *StageInfo, groupFields []string, isinput bool) {
@@ -148,6 +156,7 @@ func (sinfo *StageInfo) AddGroupingStage(s *StageInfo, groupFields []string, isi
 	}
 	All.addStage(sinfo)
 	All.addStage(s)
+	sinfo.CheckStage(s, isinput)
 }
 
 func (sinfo *StageInfo) AddDispGroupingStage(disp *DispatcherStageInfo) {
@@ -156,6 +165,36 @@ func (sinfo *StageInfo) AddDispGroupingStage(disp *DispatcherStageInfo) {
 	}
 	sinfo.grpd_inp_disp_stages = append(sinfo.grpd_inp_disp_stages, disp)
 	All.addDispStage(disp)
+}
+
+func (sinfo *StageInfo) CheckStage(s *StageInfo, isinput bool) {
+	if isinput {
+		for _, inpstage := range sinfo.input_stages {
+			if inpstage.name == s.name {
+				for _, inpgrpstage := range sinfo.grpd_inp_stages {
+					if inpgrpstage.name == s.name {
+						panic(fmt.Sprintf("Stage:%s in both grouping/non-grouping stage to :%s",
+							s.name, sinfo.name))
+						break
+					}
+				}
+				break
+			}
+		}
+	} else {
+		for _, outstage := range sinfo.output_stages {
+			if outstage.name == s.name {
+				for name, _ := range sinfo.grpd_out_stages {
+					if name == s.name {
+						panic(fmt.Sprintf("Stage:%s in both grouping/non-grouping stage to :%s",
+							s.name, sinfo.name))
+						break
+					}
+				}
+				break
+			}
+		}
+	}
 }
 
 func (sinfo *StageInfo) AddStage(s *StageInfo, isinput bool) {
@@ -179,6 +218,8 @@ func (sinfo *StageInfo) AddStage(s *StageInfo, isinput bool) {
 		sinfo.output_stages = x
 	}
 	s.AddStage(sinfo, !isinput)
+	// Don't allow the same stage as grouping or non-grouping stage
+	sinfo.CheckStage(s, isinput)
 }
 
 type ExecutorCaller struct {
@@ -208,24 +249,18 @@ func getExecutionGraph(allstgs *AllStages) *GraphNodePool {
 		for _, instage := range stage.input_stages {
 			node.AddInNode(npl.Get(instage.name))
 		}
+		for _, instage := range stage.grpd_inp_stages {
+			node.AddInNode(npl.Get(instage.name))
+		}
 		for _, outstage := range stage.output_stages {
 			node.AddOutNode(npl.Get(outstage.name))
+		}
+		for name, _ := range stage.grpd_out_stages {
+			node.AddOutNode(npl.Get(name))
 		}
 	}
 
 	return npl
-}
-
-func copyStringSlice(input []string) []string {
-	out := []string{}
-	for _, v := range input {
-		out = append(out, v)
-	}
-	return out
-}
-
-func addOutGroupingStage(caller *ExecutorCaller) {
-
 }
 
 func CreateExecutionTree() {

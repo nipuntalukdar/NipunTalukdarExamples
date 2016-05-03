@@ -84,3 +84,20 @@ func addIfNotPresent(key string, array *[]string) {
 	}
 	*array = append(*array, key)
 }
+
+func copyStringSlice(input []string) []string {
+	out := []string{}
+	for _, v := range input {
+		out = append(out, v)
+	}
+	return out
+}
+
+func isInArray(val string, array []string) bool {
+	for _, v := range array {
+		if v == val {
+			return true
+		}
+	}
+	return false
+}
