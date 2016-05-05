@@ -1,0 +1,13 @@
+num_ackers : 8
+log_path : /var/log   
+log_file : pipeline.log
+log_level : info
+log_backups : 10
+log_rolling_size : 10485760
+max_unacked : 2000
+time_out : 120000
+rpc_port : 22331
+cluster_name : "geetplaban"
+stats_interval : 60
+home_dir : "/tmp"
+dispatcher_tick_time : 1000

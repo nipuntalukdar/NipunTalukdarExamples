@@ -31,7 +31,7 @@ func (reg *DispatcherRegistry) GetInstance(name string) Dispatcher {
 	return z
 }
 
-func init() {
+func init_disp_reg() {
 	fmt.Println("Initializing Dispatcher registry")
 	dispreg = new(DispatcherRegistry)
 	dispreg.registry = make(map[string]Dispatcher)

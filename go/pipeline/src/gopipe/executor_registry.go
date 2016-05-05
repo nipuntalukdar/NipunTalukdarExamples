@@ -32,7 +32,7 @@ func (reg *ExecutorRegistry) GetInstance(name string) Executor {
 	return z
 }
 
-func init() {
+func init_executor_reg() {
 	fmt.Println("Initializing executor registry")
 	exreg = new(ExecutorRegistry)
 	exreg.registry = make(map[string]Executor)

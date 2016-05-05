@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"sync"
+	"sync/atomic"
 )
 
 type Collector interface {
@@ -12,6 +13,8 @@ type Collector interface {
 	Fail(context interface{})
 	AddOutput(outchan chan *OutPut)
 	IsForDispatcher() bool
+	updEmittedTracked(delta int32)
+	getEmittedTracked() int32
 }
 
 type groupedChans struct {
@@ -30,6 +33,7 @@ type TupleCollector struct {
 	groupd_chans   []*groupedChans
 	all_group_keys []string
 	num_grouped    int
+	on_process     *int32
 }
 
 func getKeyHash(key string) uint32 {
@@ -42,6 +46,7 @@ func NewTupleCollector(stage string, id uint, isdisp uint) *TupleCollector {
 	tc.id = uint64(id) << 32
 	tc.lock = &sync.Mutex{}
 	tc.isdisp = isdisp
+	tc.on_process = new(int32)
 	return tc
 }
 
@@ -55,6 +60,7 @@ func (tc *TupleCollector) Copy() *TupleCollector {
 	ret.groupd_chans = tc.groupd_chans
 	ret.all_group_keys = tc.all_group_keys
 	ret.num_grouped = tc.num_grouped
+	ret.on_process = new(int32)
 	return ret
 }
 
@@ -101,6 +107,9 @@ func (tc *TupleCollector) emitTrack(tuple map[string]interface{}, context *AckVa
 	}
 	if context != nil {
 		GetAcker().AddAck(context.id, outval)
+		if tc.IsForDispatcher() && outval > 0 {
+			tc.updEmittedTracked(1)
+		}
 	}
 }
 
@@ -151,4 +160,12 @@ func (tc *TupleCollector) AddOutput(chn chan *OutPut) {
 
 func (tc *TupleCollector) IsForDispatcher() bool {
 	return tc.isdisp > 0
+}
+
+func (tc *TupleCollector) updEmittedTracked(delta int32) {
+	atomic.AddInt32(tc.on_process, delta)
+}
+
+func (tc *TupleCollector) getEmittedTracked() int32 {
+	return atomic.LoadInt32(tc.on_process)
 }

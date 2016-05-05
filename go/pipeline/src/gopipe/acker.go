@@ -241,7 +241,7 @@ func (exh *expiryHeap) popIfLess(t int64) (*expiryValue, bool) {
 	return nil, false
 }
 
-func init() {
+func init_acker() {
 	ac := NewLocalAcker(8, 10)
 	ackerinst = ac
 	ackerinst.Start()

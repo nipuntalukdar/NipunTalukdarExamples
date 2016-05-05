@@ -133,7 +133,7 @@ func openAndLockFile(outfile string) (*os.File, int64) {
 var LOG *logrus.Logger
 
 func NewLogger() *Logger {
-	outfile := "a.log"
+	outfile := GetConfig().GetLogFile()
 	max_back_up := 10
 	max_log_size := 1024 * 1024
 	events := make(chan []byte, 40960)
@@ -145,7 +145,11 @@ func NewLogger() *Logger {
 	regexp := outfile + ".*"
 	writer := NewLogWriter(events)
 	logrloger := logrus.New()
-	logrloger.Level = logrus.DebugLevel
+	loglevel, err := logrus.ParseLevel(GetConfig().GetLogLevel())
+	if err != nil {
+		panic(err)
+	}
+	logrloger.Level = loglevel
 	logrloger.Out = writer
 	logrloger.Formatter = &logrus.TextFormatter{DisableColors: true,
 		TimestampFormat: "2006-01-02T15:04:05"}
@@ -188,7 +192,7 @@ func logSyncer(logger *Logger) {
 	}
 }
 
-func init() {
+func init_logger() {
 	logger := NewLogger()
 	go logSyncer(logger)
 }

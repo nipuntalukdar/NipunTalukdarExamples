@@ -235,7 +235,8 @@ var dispcallers []*DispPatcherCaller
 var i int
 var nextids *NextIdGetter
 
-func init() {
+func init_stages() {
+	All = newAllStageInfo()
 	callers = make([]*ExecutorCaller, 0)
 	dispcallers = make([]*DispPatcherCaller, 0)
 	i = 0
@@ -387,10 +388,6 @@ func (All *AllStages) getChan(stage string) chan *OutPut {
 	return nil
 }
 
-func init() {
-	All = newAllStageInfo()
-}
-
 func taskRunner(caller *ExecutorCaller) {
 	caller.exc.AddIdentity(caller.id)
 	if caller.grp_chan == nil {
@@ -416,7 +413,7 @@ func Run() {
 	}
 
 	for _, dispcaller := range dispcallers {
-		GetAcker().AddTracker(dispcaller.id, dispcaller.dis)
+		GetAcker().AddTracker(dispcaller.id, dispcaller)
 	}
 
 	for _, dispcaller := range dispcallers {
