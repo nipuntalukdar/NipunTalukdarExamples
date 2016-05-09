@@ -109,7 +109,7 @@ def is_min_heap(arr):
 def heapsort(arr):
     max_heapify(arr)
     pos = len(arr) - 1
-    while True:
+    while pos > 0:
         arr[0], arr[pos] = arr[pos], arr[0]
         pos -= 1
         if pos == 0:
