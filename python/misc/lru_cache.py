@@ -21,7 +21,7 @@ class LruCache(object):
             raise Exception("None is not allowed as value")
         with self.lock:
             if key in self.__vals:
-                return false
+                return False
             self.__vals[key] = val
             self.__accessed.append(key)
             self.__cur_count += 1
