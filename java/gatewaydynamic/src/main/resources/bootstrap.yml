@@ -1,0 +1,20 @@
+server:
+  port: 6666
+spring:
+  cloud:
+    consul:
+      host: 127.0.0.1
+      port: 8500
+      config:
+        enabled: true
+        prefix: tempconfig
+        defaultContext: appsgwserver
+        profile-separator: "xx"
+        dataKey: data
+        format: YAML
+      discovery:
+        enabled: true
+  application:
+    name: gwserver
+
+
