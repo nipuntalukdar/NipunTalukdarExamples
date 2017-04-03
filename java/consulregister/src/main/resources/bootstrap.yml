@@ -1,0 +1,19 @@
+spring:
+  cloud:
+    consul:
+      host: localhost
+      port: 8500
+      config:
+        enabled: true
+        prefix: tempconfig
+        defaultContext: apps
+        profile-separator: "xx"
+        dataKey: data
+        format: YAML
+  application:
+    name: registeringapp
+server:
+  port: 7778
+my:
+  hello: 1
+  
