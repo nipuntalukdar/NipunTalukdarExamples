@@ -1,0 +1,10 @@
+server:
+  port: 4444
+spring:
+  application:
+    name: clientloadb
+targetservice:
+  ribbon:
+    consul:
+      enabled: false
+    ServerListRefreshInterval: 15000
