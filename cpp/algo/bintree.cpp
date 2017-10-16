@@ -1,6 +1,7 @@
 #include <iostream>
 #include <stdlib.h>
 #include <time.h>
+#include <vector>
 
 using namespace std;
 
@@ -12,6 +13,7 @@ private:
     T val;
     Tree *right = nullptr;
     Tree *left = nullptr;
+    void printPathsInternal(vector<T>& vals);
     
 public:
     Tree(T val);
@@ -20,6 +22,7 @@ public:
     bool add(T val);
     int32_t maxDepth();
     int32_t size();
+    void printPaths();
 
 };
 
@@ -83,6 +86,42 @@ int32_t Tree<T>::maxDepth()
     return 1 + max(leftdepth, rightdepth);
 }
 
+template<class T>
+void Tree<T>::printPaths()
+{
+    if (left == nullptr && right == nullptr) {
+        cout << val << endl;
+        return;
+    }
+    vector<T> paths = {val};
+    if (left) {
+        left->printPathsInternal(paths);
+    }
+    if (right) {
+        right->printPathsInternal(paths);
+    }
+}
+
+template<class T>
+void Tree<T>::printPathsInternal(vector<T>& vals)
+{
+    if (left == nullptr && right == nullptr) {
+        for (auto &x : vals) {
+            cout << x << " ";
+        }
+        cout << val << endl;
+        return;
+    }
+    vals.push_back(val);
+    if (left) {
+        left->printPathsInternal(vals);
+    }
+    if (right) {
+        right->printPathsInternal(vals);
+    }
+    vals.pop_back();
+}
+
 int main() {
     Tree<int> a(0);
     cout << boolalpha << a.add(0) << endl;
@@ -94,5 +133,6 @@ int main() {
     }
     cout << "Size :" << a.size() << endl;
     cout << "Depth :" << a.maxDepth() << endl;
+    a.printPaths();
     return 0;
 }
