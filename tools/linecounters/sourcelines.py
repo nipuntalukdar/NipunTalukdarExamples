@@ -20,10 +20,13 @@ extns_norm_map = {'c': 'C', 'h': 'C', 'c++': 'C++', 'cxx': 'C++', 'hpp': 'C++', 
                   'cpp': 'C++', 'pl': 'Perl', 'pm': 'Perl', 'scala': 'Scala', 'java': 'Java', 'go': 'Go',
                   'py': 'Python', 'php': 'PHP', 'rb' : 'Ruby', 'cs' : 'C#', 'js' :  'JavaScript'}
 skipdir_re = None
+skiffile_re = None
 
 
 def get_file_type(filepath):
     try:
+        if skiffile_re:
+            base = path.basename(filepath) 
         extn_index = filepath.rfind('.')
         extn = filepath[extn_index + 1:]
         if extn == '':
@@ -113,7 +116,10 @@ def countlines_in(dirstart, real_lines):
         file_type = get_file_type(fpath)
         if file_type is None:
             continue
-
+        if skiffile_re:
+            base = path.basename(fpath)
+            if skiffile_re.match(base):
+                continue
         try:
             fp = open(filepath, 'r')
             lines = fp.readlines()
@@ -191,6 +197,8 @@ if __name__ == '__main__':
                       help='root directory for source code')
     parser.add_option('-s', '--skip_dirs', dest='skip_dir_pattern', metavar='SKIP_DIR_REGEX',
                       help='regular expression for directory name to be skipped')
+    parser.add_option('-f', '--skip_files', dest='skip_regular_file', metavar='SKIP_FILE_REGEX',
+                      help='regular expression for file names to be skipped')
 
     (options, args) = parser.parse_args()
     if options.start_dir is None:
@@ -208,6 +216,8 @@ if __name__ == '__main__':
  
     if options.skip_dir_pattern is not None:
         skipdir_re = re.compile(options.skip_dir_pattern)
+    if options.skip_regular_file is not None:
+        skiffile_re = re.compile(options.skip_regular_file)
 
     real_lines = {}
     countlines_in(options.start_dir, real_lines)
