@@ -2,7 +2,6 @@ import sys
 import json
 from elasticsearch import Elasticsearch
 
-print len(sys.argv)
 es_host = '127.0.0.1:9200'
 if len(sys.argv) > 1:
     es_host = sys.argv[1]
