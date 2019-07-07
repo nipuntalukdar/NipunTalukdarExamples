@@ -5,6 +5,9 @@ merge_sort alogoritm
 import random
 
 def correct_pos(arr, start, pos_to_correct):
+    # Do a insertion sort of to move the element at
+    # pos_to_correct to correct position
+
     i = start
     while i <= pos_to_correct:
         if arr[i] <= arr[pos_to_correct]:
@@ -13,6 +16,11 @@ def correct_pos(arr, start, pos_to_correct):
             break
     if i >= pos_to_correct:
         return
+
+    # i is the position where the element from pos_to_correct
+    # should move, right shift the array from i to 
+    # pos_to_correct -1  by 1 place
+    # and then set i-th with original arr[pos_to_correct]
     tmp = arr[pos_to_correct]
     while pos_to_correct > i:
         arr[pos_to_correct] = arr[pos_to_correct - 1]
