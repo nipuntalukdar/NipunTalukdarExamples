@@ -7,16 +7,43 @@ from random import randint
 from copy import copy
 
 if len(sys.argv[1]) < 2:
-    print 'Exiting....'
+    print('Exiting....')
     sys.exit(1)
 delaygiven = 4
 if len(sys.argv) > 2:
     delaygiven = float(sys.argv[2])
+
+playsequentially = False
+if len(sys.argv) > 3:
+    playsequentially = True
 target = sys.argv[1]
 files = os.listdir(target)
 files = ['{}/{}'.format(target, f) for f in files]
 
 player = '/usr/bin/mplayer'
+
+def play_sequentially(mp3s, delay):
+    mp3s.sort()
+    count = len(mp3s)
+    playidx = 0
+    while True:
+        if playidx == count:
+            playidx = 0
+        start = time()
+        selected = mp3s[playidx]
+        p = Popen([player, selected],  stdout=subprocess.PIPE,
+            stderr= subprocess.STDOUT)
+        p.communicate()
+        p.wait()
+        current = time() - start
+        actdelay = delay - current
+        '''
+        if actdelay > 0:
+            sleep(actdelay)
+        '''
+        sleep(delay)
+        playidx += 1
+
 
 def playfiles(mp3s, delay):
     count = len(mp3s)
@@ -40,4 +67,8 @@ def playfiles(mp3s, delay):
         '''
         sleep(delay)
 
-playfiles(files, delaygiven)
+
+if not playsequentially:
+    playfiles(files, delaygiven)
+else:
+    play_sequentially(files, delaygiven)
