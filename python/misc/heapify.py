@@ -1,5 +1,5 @@
 def parent(i):
-    return (i - 1)/2
+    return int((i - 1)/2)
 
 def sibling(i, max):
     if i == 0:
@@ -118,20 +118,20 @@ def heapsort(arr):
 
 
 x = [100,200, 50, 30, 20, 210, 60, 80, 90, 70, 40, 400, 1]
-print x, 'is min heap? ', is_min_heap(x)
+print (x, 'is min heap? ', is_min_heap(x))
 max_heapify(x)
 if is_max_heap(x):
-    print 'Below is a max heap'
-print x
+    print('Below is a max heap')
+print(x)
 min_heapify(x)
 if is_min_heap(x):
-    print 'Below is a min heap'
-print x
+    print('Below is a min heap')
+print(x)
 heapsort(x)
-print 'Sorted', x
+print('Sorted', x)
 max_heapify(x)
 if is_max_heap(x):
-    print 'Below is a max heap'
-print x
+    print('Below is a max heap')
+print(x)
 heapsort(x)
-print 'Sorted', x
+print('Sorted', x)
