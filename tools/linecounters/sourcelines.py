@@ -165,14 +165,14 @@ def update_comment_syntax(comment_syntax_file):
             if 'start' in tmp:
                 start = tmp['start'].strip()
                 if len(start) == 0:
-                    print 'comment start cannot be empty'
+                    print('comment start cannot be empty')
                     return False
                 if 'end' not in tmp:
-                    print 'end for comment is not specified'
+                    print('end for comment is not specified')
                     return False
                 end = tmp['end'].strip()
                 if len(end) == 0:
-                    print 'end for comment cannot be empty'
+                    print('end for comment cannot be empty')
                     return False
                 comment_syntax[output_as].update({'start': start, 'end': end})
 
@@ -186,7 +186,7 @@ def update_comment_syntax(comment_syntax_file):
                 if len(whole_lines) > 0 :
                     comment_syntax[output_as].update({'whole_line' : whole_lines})
     except Exception as e:
-        print e
+        print(e)
         return False
 
     return True
@@ -205,16 +205,16 @@ if __name__ == '__main__':
 
     (options, args) = parser.parse_args()
     if options.start_dir is None:
-        print 'Please supply value for root_source_dir'
+        print('Please supply value for root_source_dir')
         sys.exit(1)
 
     if not path.isdir(options.start_dir):
-        print options.start_dir, ' is not a directory'
+        print(options.start_dir, ' is not a directory')
         sys.exit(1)
 
     if options.comment_file is not None:
         if not update_comment_syntax(options.comment_file):
-            print 'Some problem in updating comment syntax'
+            print('Some problem in updating comment syntax')
             sys.exit(1)
  
     if options.skip_dir_pattern is not None:
@@ -224,5 +224,5 @@ if __name__ == '__main__':
 
     real_lines = {}
     countlines_in(options.start_dir, real_lines)
-    for file_type, lines in real_lines.iteritems():
-        print "File-type:%10s  Line-count:%8d" % (file_type, lines,)
+    for file_type, lines in real_lines.items():
+        print("File-type:%10s  Line-count:%8d" % (file_type, lines,))
