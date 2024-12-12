@@ -13,15 +13,21 @@ mkdir .dirs
 # Then execute the below command
 soure $HOME/.dirs/dirs.sh
 
+```
+
 Now you will have a function xcd available for you.
 If you want to remember some directory for future, you can do something like as shown below:
+
 ```
-$ xcd  /path/to/some/dir
-$ xcd /tmp
-$ xcd $PWD
+xcd  /path/to/some/dir
+xcd /tmp
+xcd $PWD
+
 ```
+
 The above commands will cd to those directories as well as will remember them.
 Now if you want to go to some directory in the remembered list, you may do the below:
+
 ```
 #xcd dash dash
 xcd --
@@ -34,35 +40,10 @@ xcd --
    5: /tmp
    6: /home/geet/.kube
 You may entter a number, or a directory path or simply enter nothing. If you just press enter (without any text), then it will cd to your home directory.
-#
+
 ```
 
 By default, xcd can remember last 20 directories. If you want to override that valule, you may do this:
 ```
 export MAX_DIR_HISTORY=40
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
