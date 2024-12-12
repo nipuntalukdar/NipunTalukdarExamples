@@ -32,14 +32,17 @@ Now if you want to go to some directory in the remembered list, you may do the b
 #xcd dash dash
 xcd --
 
-#It will print a a list like the one shon below:
+#It will print a a list like the one shown below:
+
    1: /home/geet/vnf/datasets
    2: /home/geet
    3: /home/geet/test
    4: /home/geet/.dirs
    5: /tmp
    6: /home/geet/.kube
-You may entter a number, or a directory path or simply enter nothing. If you just press enter (without any text), then it will cd to your home directory.
+
+You may entter a number, or a directory path or simply enter nothing. 
+If you just press enter (without any text), then it will cd to your home directory.
 
 ```
 
