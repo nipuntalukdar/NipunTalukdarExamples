@@ -1,15 +1,16 @@
-{  "hs" : {
-        "output_as" : "Haskell",
-        "other_extns" : [ "haskell" , "hask" ],
-        "start" : "{-",
-        "end" : "-}",
-        "whole_line" : ["--"]
-    },   
-    "js" : {
-        "output_as" : "Javascript",
-        "other_extns" : [ "javascript"],
-        "start" : "/*",
-        "end" : "*/",
-        "whole_line" : ["//"]
-    }
+{
+    "hs": {
+        "output_as": "Haskell",
+        "other_extns": ["haskell", "hask"],
+        "start": "{-",
+        "end": "-}",
+        "whole_line": ["--"],
+    },
+    "js": {
+        "output_as": "Javascript",
+        "other_extns": ["javascript"],
+        "start": "/*",
+        "end": "*/",
+        "whole_line": ["//"],
+    },
 }

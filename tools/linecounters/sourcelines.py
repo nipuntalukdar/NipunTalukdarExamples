@@ -1,19 +1,26 @@
 #!/usr/bin/python
 __author__ = "geet"
 
-from os import listdir, path
-import sys
-import re
 import json
-import chardet
+import re
+import sys
 from optparse import OptionParser
+from os import listdir, path
+
+import chardet
 
 cstyle_comments = {"whole_line": ["//"], "start": "/*", "end": "*/"}
-python_comments = {"whole_line": ["#"], "start": "'''", "end": "'''"}
+python_comments = {
+    "whole_line": ["#"],
+    "start": "'''",
+    "end": "'''",
+    "start_alias": '"""',
+    "end_alias": '"""',
+}
 perl_comments = {"whole_line": ["#"]}
 php_comments = {"whole_line": ["//", "#"], "start": "/*", "end": "*/"}
 ruby_comments = {"whole_line": ["#"], "start": "=begin", "end": "=end"}
-lua_comments = {"whole_line": ["--"], "start": "--[[", "end": "--]]"}
+lua_comments = {"whole_line": ["--"], "start": "--[[", "end": "]]"}
 comment_syntax = {
     "C": cstyle_comments,
     "Java": cstyle_comments,
@@ -77,70 +84,94 @@ def get_file_type(filepath):
         return None
 
 
-def check_whole_line(line, file_type):
-    if "whole_line" not in comment_syntax[file_type]:
-        return line
-    whole_comm_pos = -1
-    comm_strs = comment_syntax[file_type]["whole_line"]
-    start_pos = 0
-    end_pos = len(line)
-    for comm_str in comm_strs:
-        start_pos = line.find(comm_str, start_pos, end_pos)
-        if start_pos != -1:
-            whole_comm_pos = start_pos
-            if start_pos == 0:
-                break
-            end_pos = start_pos
+def check_line(line, file_type, is_comm_started):
+    if is_comm_started:
+        # Look for end of multi-line-comments. If it is not there
+        # simply ignore that line
+        commennt_end_pos = line.find(comment_syntax[file_type]["end"])
+        if commennt_end_pos == -1:
+            return "", is_comm_started
+        is_comm_started = False
+        line = line[commennt_end_pos + len(comment_syntax[file_type]["end"]) :]
+        if not line:
+            return "", is_comm_started
+        return check_line(line, file_type, is_comm_started)
 
-    if whole_comm_pos != -1:
-        line = line[:whole_comm_pos]
+    whole_comm_pos = -1
+    is_comm_started = False
+    if "whole_line" in comment_syntax[file_type]:
+        comm_strs = comment_syntax[file_type]["whole_line"]
+        whole_comm_pos = min([line.find(a) for a in comm_strs])
+    multi_l_pos = line.find(comment_syntax[file_type]["start"])
+    if multi_l_pos == whole_comm_pos == -1:
+        return line, is_comm_started
+    whole_line_comment = False
+    if multi_l_pos == -1:
+        whole_line_comment = True
+    elif whole_comm_pos == -1:
+        whole_line_comment = False
+    elif whole_comm_pos <= multi_l_pos:
+        whole_line_comment = True
+    if whole_line_comment:
+        return line[:whole_comm_pos], is_comm_started
+    else:
+        is_comm_started = True
+        non_comm_part = line[:multi_l_pos]
+        line, is_comm_started = check_line(
+            line[multi_l_pos + len(comment_syntax[file_type]["start"]) :],
+            file_type,
+            is_comm_started,
+        )
+        if not line:
+            line = non_comm_part
+        return line, is_comm_started
+
+
+def remove_whitespaces(line, file_type):
+    if not line:
+        return line
+    line = line.strip()
+    if not line:
+        return line
+    comment_keys = []
+    if "whole_line" in comment_syntax[file_type]:
+        comment_keys += comment_syntax[file_type]["whole_line"]
+    if "start" in comment_syntax[file_type]:
+        comment_keys.append(comment_syntax[file_type]["start"])
+    if "end" in comment_syntax[file_type]:
+        comment_keys.append(comment_syntax[file_type]["end"])
+    for c_key in comment_keys:
+        c_key_escaped = re.escape(c_key)
+        line = re.sub(f"\s*{c_key_escaped}\s*", c_key, line)
     return line
 
 
-def check_for_countable_line(comment_started, line, file_type):
-    increment = False
-    start_pos = 0
-    while True:
-        if comment_started:
-            start_pos = line.find(comment_syntax[file_type]["end"], start_pos)
-            if start_pos == -1:
-                break
-            start_pos += len(comment_syntax[file_type]["end"])
-            comment_started = False
-            if start_pos == len(line):
-                break
-            continue
-        new_pos = line.find(comment_syntax[file_type]["start"], start_pos)
-        if new_pos == -1:
-            increment = True
-            break
-        if new_pos != start_pos:
-            increment = True
-        comment_started = True
-        start_pos = new_pos + len(comment_syntax[file_type]["start"])
-
-    return comment_started, increment
+def normalize_alias(line, file_type):
+    if not line:
+        return line
+    if "start_alias" in comment_syntax[file_type]:
+        line = line.replace(
+            comment_syntax[file_type]["start_alias"], comment_syntax[file_type]["start"]
+        )
+    if "end_alias" in comment_syntax[file_type]:
+        line = line.replace(
+            comment_syntax[file_type]["end_alias"], comment_syntax[file_type]["end"]
+        )
+    return line
 
 
 def count_real_lines(lines, file_type):
     reallines = 0
-    comment_started = False
-    increment = False
-
+    is_comm_started = False
     for line in lines:
-        line = line.strip()
+        line = remove_whitespaces(line, file_type)
+        line = normalize_alias(line, file_type)
+        if not line:
+            continue
+        line, is_comm_started = check_line(line, file_type, is_comm_started)
         if line == "":
             continue
-        line = check_whole_line(line, file_type)
-        if line == "":
-            continue
-        increment = True
-        if "start" in comment_syntax[file_type]:
-            comment_started, increment = check_for_countable_line(
-                comment_started, line, file_type
-            )
-        if increment:
-            reallines += 1
+        reallines += 1
     return reallines
 
 
@@ -166,7 +197,7 @@ def get_file_lines(filepath):
     try:
         with open(filepath, "r") as fp:
             return True, fp.readlines()
-    except UnicodeDecodeError as e:
+    except UnicodeDecodeError:
         return try_get_file_lines(filepath)
     except Exception as e:
         print(filepath, e)
@@ -179,7 +210,7 @@ def countlines_in(dirstart, real_lines):
             return
     try:
         direntries = listdir(dirstart)
-    except OSError as e:
+    except OSError:
         return
     next_level_dirs = []
     for fpath in direntries:
@@ -204,8 +235,7 @@ def countlines_in(dirstart, real_lines):
             else:
                 real_lines[file_type] += c_lines
         except Exception as e:
-            print(filepath)
-            print(e)
+            print(filepath, e)
 
     for next_level_dir in next_level_dirs:
         if skipdir_re is not None:
