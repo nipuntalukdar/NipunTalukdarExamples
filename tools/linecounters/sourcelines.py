@@ -110,7 +110,7 @@ def check_line(line, file_type, is_comm_started):
         whole_line_comment = True
     elif whole_comm_pos == -1:
         whole_line_comment = False
-    elif whole_comm_pos <= multi_l_pos:
+    elif whole_comm_pos < multi_l_pos:
         whole_line_comment = True
     if whole_line_comment:
         return line[:whole_comm_pos], is_comm_started
