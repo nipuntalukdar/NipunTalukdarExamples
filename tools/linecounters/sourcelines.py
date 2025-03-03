@@ -300,7 +300,7 @@ def update_comment_syntax(comment_syntax_file):
     return True
 
 
-if __name__ == "__main__":
+def main():
     parser = OptionParser()
     parser.add_option(
         "-c",
@@ -360,3 +360,7 @@ if __name__ == "__main__":
                 lines,
             )
         )
+
+
+if __name__ == "__main__":
+    main()
