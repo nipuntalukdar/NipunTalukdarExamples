@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/hashicorp/raft"
-	"github.com/hashicorp/raft-boltdb"
+	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 	"io"
 	"os"
 	"strings"
@@ -88,7 +88,7 @@ func (mfsm *MyFsm) Restore(inp io.ReadCloser) error {
 	}
 	dec := gob.NewDecoder(&buffer)
 	err := dec.Decode(&mfsm.data)
-	errorOnExit(err)
+	exitOnError(err)
 	return nil
 }
 
@@ -118,7 +118,7 @@ func (mfsmsh *MyFsmSnapshot) Release() {
 	fmt.Printf("Released\n")
 }
 
-func errorOnExit(err error) {
+func exitOnError(err error) {
 	if err != nil {
 		fmt.Printf("Error %s\n", err)
 		os.Exit(1)
@@ -147,19 +147,20 @@ func main() {
 		fmt.Printf("Failed to create logstore")
 		os.Exit(1)
 	}
-
 	snaps, err := raft.NewFileSnapshotStoreWithLogger("/tmp/snapshots", 3, nil)
-	errorOnExit(err)
+	exitOnError(err)
 	transport, err := raft.NewTCPTransport("127.0.0.1:7000", nil, 10, 10*time.Second, nil)
-	errorOnExit(err)
-	peerstore := raft.NewJSONPeers("/tmp/peers", transport)
+	exitOnError(err)
 	conf := raft.DefaultConfig()
-	conf.EnableSingleNode = true
 	conf.SnapshotThreshold = 40
 	conf.SnapshotInterval = 10 * time.Second
+	conf.LocalID = raft.ServerID("myid")
+	var configuration raft.Configuration
+	configuration.Servers = append(configuration.Servers, raft.Server{Suffrage: raft.Voter,
+		ID: conf.LocalID, Address: transport.LocalAddr()})
+	raft.BootstrapCluster(conf, logstore, sstore, snaps, transport, configuration)
 	fsm := NewMyFsm()
-	raftmod, err := raft.NewRaft(conf, fsm, logstore, sstore,
-		snaps, peerstore, transport)
+	raftmod, err := raft.NewRaft(conf, fsm, logstore, sstore, snaps, transport)
 	time.Sleep(2 * time.Second)
 	fmt.Printf("Leader is %v\n", raftmod.Leader())
 	future := raftmod.Apply([]byte("hello:value"), 0)
