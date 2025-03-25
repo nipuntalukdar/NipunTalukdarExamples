@@ -35,7 +35,7 @@ def merge_sort(arr, start, end):
         if arr[end] < arr[start]:
             arr[end], arr[start] = arr[start], arr[end]
         return
-    middle = (end - start) / 2 + start
+    middle = (end - start) // 2 + start
     merge_sort(arr, start, middle)
     merge_sort(arr, middle + 1, end)
 
@@ -54,6 +54,6 @@ if __name__ == '__main__':
         arr.append(random.randint(0, 1000))
         i += 1
 
-    print 'Unsorted: ', arr
+    print('Unsorted: ', arr)
     merge_sort(arr, 0, len(arr) - 1)
-    print 'Sorted: ', arr
+    print('Sorted: ', arr)
