@@ -29,4 +29,4 @@ def lcs(s1, s2):
         else:
             return len2, c2
 
-print lcs('aghjbjklcghh', 'gdannbc')
+print(lcs('aghjbjklcghh', 'gdannbc'))
