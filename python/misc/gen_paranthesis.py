@@ -19,6 +19,16 @@ etc.
 
 '''
 
+def gen_p_sec(n):
+    def bac_track(s, l_count, r_count):
+        if len(s) == 2 *n:
+            print(s)
+            return
+        if l_count < n:
+            bac_track(s + "(", l_count + 1, r_count)
+        if r_count < l_count:
+            bac_track(s + ")", l_count, r_count + 1)
+    bac_track("", 0, 0)
 
 def gen_p(depth, rt, lt, lst, maxcount, paircount):
     depth += 1
@@ -37,3 +47,5 @@ def gen_p(depth, rt, lt, lst, maxcount, paircount):
 
    
 gen_p(0, 0, 0, [], 10, 5)
+print("Second version")
+gen_p_sec(5)
